@@ -4,13 +4,13 @@ Status: **draft v0**, 2026-10-20. Baseline: `better-auth` `^1.6.23`.
 
 These are the rules BYO packages follow so they work as one system instead of a pile of plugins. A BYO package is a library, not a service: it runs inside your app, keeps its data in your database, and uses better-auth users and organizations as its identity.
 
-The keywords **MUST**, **SHOULD** and **MAY** mean what RFC 2119 says. Part 1 is **required**: every rule there can be met today with plain better-auth primitives, and most are drawn from what `better-inbox` already does. Part 2 is **proposed**: shared packages and contracts that don't exist yet. Nothing in Part 1 depends on Part 2.
+The keywords **MUST**, **SHOULD** and **MAY** mean what RFC 2119 says. Part 1 is **required**: every rule there can be met today with plain better-auth primitives, and most are drawn from what `@byo-oss/notifications` (formerly `better-inbox`) already does. Part 2 is **proposed**: shared packages and contracts that don't exist yet. Nothing in Part 1 depends on Part 2.
 
 ## Tiers
 
 | Tier | What it is | Example | How it integrates |
 |---|---|---|---|
-| **Plugin** | A better-auth plugin. Its tables come from the plugin `schema`, its endpoints from `createAuthEndpoint`. | `better-inbox` | `betterAuth({ plugins: [inbox()] })` |
+| **Plugin** | A better-auth plugin. Its tables come from the plugin `schema`, its endpoints from `createAuthEndpoint`. | `@byo-oss/notifications` | `betterAuth({ plugins: [inbox()] })` |
 | **App** | A larger product with its own migrations and request handler. | None yet (upstream `better-helpdesk` has this shape) | An `identify(request)` adapter that maps a better-auth session to the app's identity |
 
 New packages SHOULD be plugins. A package is an app only when it needs things a plugin can't give it, such as its own route tree, inbound webhooks or a separate database. Rules marked *(plugin)* apply to plugins only. Everything else applies to both tiers.
@@ -160,7 +160,7 @@ organization({
 
 7.4 Interactive parts work from the keyboard, close on Escape and outside click, and announce counts to screen readers.
 
-7.5 Every user-facing string is overridable through a `labels` prop with English defaults. (`better-inbox` doesn't do this yet; see the compliance table.)
+7.5 Every user-facing string is overridable through a `labels` prop with English defaults. (`@byo-oss/notifications` doesn't do this yet; see the compliance table.)
 
 ## 8. Docs and tests
 
@@ -304,7 +304,7 @@ Names claimed by BYO packages. Add a row before you release.
 
 | Package | Plugin id / path prefix | Models | `auth.api` keys | Error codes | Status |
 |---|---|---|---|---|---|
-| `@byo-oss/notifications` (published as `better-inbox`) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.6.0) |
+| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.7.0) |
 | *`@byo-oss/support`* | *`support`?* | *TBD* | — | — | Planned; net-new, built to this spec, borrowing from upstream `better-helpdesk` (MIT) |
 | *feedback / roadmap / changelog* | *`feedback`?* | *`feedbackPost`, `feedbackVote`, `changelogEntry`?* | — | — | Planned; name not claimed |
 | *org activity feed* | *`activity`?* | *`activityEvent`?* | — | — | Planned |
@@ -314,7 +314,7 @@ Inbox's `notify` and `processDeliveries` predate the prefix rule in 2.1. They ke
 
 ## Compliance today
 
-| Rule | better-inbox 0.6.0 |
+| Rule | @byo-oss/notifications 0.7.0 |
 |---|---|
 | 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps` |
 | 1.4 disclaimer | ✅ |
@@ -332,7 +332,7 @@ Inbox's `notify` and `processDeliveries` predate the prefix rule in 2.1. They ke
 | 9.3 data export | ❌ |
 | 9.5 uninstall steps | ❌ |
 | 10.3 exported interface | ✅ `InboxChannel` |
-| 10.4 first-party adapter | ✅ `better-inbox/wraps` |
+| 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` |
 | 10.6 `./testing` suite | ❌ |
 
 ## Open questions
