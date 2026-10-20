@@ -56,6 +56,8 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 
 2.6 The client plugin declares `$InferServerPlugin` and a `pathMethods` entry for every endpoint the client calls ([`src/client.ts`](https://github.com/byo-oss/notifications/blob/main/src/client.ts)).
 
+2.7 Adapter queries hold up on every adapter. Pass an explicit `limit` to `findMany`, which returns 100 rows otherwise. Keep `in` lists to 90 values or fewer, chunking longer ones, because Cloudflare D1 binds at most 100 parameters per query. Don't page with `id > cursor`: the memory adapter sorts strings with `localeCompare` but compares them with `>`, so the two disagree.
+
 ## 3. Identity
 
 3.1 A signed-in person is a better-auth `user`, referenced by `userId`. A tenant is a better-auth `organization`, referenced by `organizationId`. Packages MUST NOT keep their own user or customer table for people who have accounts.
@@ -146,9 +148,11 @@ organization({
 })
 ```
 
-`organizationHooks` belong to the app's `organization()` options, so a package can't register them; the app wires the cleanup in. A package MAY also clean up by itself with a plugin `hooks.after` matcher on `/organization/delete`. It still MUST export the function, because a hook on that path doesn't see deletes made some other way.
+`organizationHooks` belong to the app's `organization()` options, so a package can't register them; the app wires the cleanup in. A package MAY also clean up by itself with a plugin `hooks.after` matcher on `/organization/delete`, `/organization/remove-member` and `/organization/leave`. Leaving fires no `organizationHooks`, so a plugin hook is the only automatic cleanup for it. A package that cleans up by itself offers an option to turn it off, for apps that keep history for audit. It still MUST export the functions, because a hook on those paths doesn't see deletes made some other way, nor deletes whose own `organizationHooks` threw.
 
 6.3 A package that stores `organizationId` per member also exports a cleanup for when someone leaves or is removed: `deleteMemberData(auth, { userId, organizationId })`.
+
+6.4 Foreign keys don't cascade on adapters that lack them (memory, MongoDB). A package whose rows reference `user` also removes them in a `databaseHooks.user.delete.after` hook returned from its plugin `init`, so 6.1 holds on every adapter.
 
 ## 7. UI *(when there's a `./react` export)*
 
@@ -160,7 +164,7 @@ organization({
 
 7.4 Interactive parts work from the keyboard, close on Escape and outside click, and announce counts to screen readers.
 
-7.5 Every user-facing string is overridable through a `labels` prop with English defaults. (`@byo-oss/notifications` doesn't do this yet; see the compliance table.)
+7.5 Every user-facing string is overridable through a `labels` prop with English defaults.
 
 ## 8. Docs and tests
 
@@ -192,7 +196,7 @@ BYO is the right default for a young product, and some orgs will outgrow it: the
 
 9.2 The schema is documented as a public contract: every model, every field, what each means. A schema change that breaks reading the old data is a major release, so exports and migration scripts keep working.
 
-9.3 Every package exports `export<Thing>Data(auth, { organizationId?, cursor? })`. It returns all the package's data (or one org's), paged with a cursor, as plain JSON in the documented schema, with better-auth `userId`/`organizationId` and the user's email on each row so it can be matched in the destination tool. It is server-only; it is not an endpoint.
+9.3 Every package exports `export<Thing>Data(auth, { organizationId?, cursor? })`. It returns all the package's data (or one org's), paged with a cursor, as plain JSON in the documented schema, with better-auth `userId`/`organizationId` and the user's email on each row so it can be matched in the destination tool. It is server-only; it is not an endpoint. Short-lived state (a presence heartbeat) MAY be left out if the docs say so.
 
 9.4 App code reaches the package through a small, stable surface (`auth.api.notify`, a hook, a component), never through its tables. When that surface is swapped for a third-party SDK, the migration touches those call sites and nothing else. Packages don't encourage apps to query their tables directly.
 
@@ -221,10 +225,12 @@ Like better-auth, which keeps users and sessions in your database but plugs in O
 ```ts
 // byo-notifications-onesignal/src/channel.test.ts
 import { testChannel } from "@byo-oss/notifications/testing"
-testChannel(() => onesignalChannel({ appId: "test", fetch: fakeFetch }))
+testChannel(() => onesignalChannel({ appId: "test", fetch: fakeFetch }), {
+  failing: () => onesignalChannel({ appId: "test", fetch: failingFetch }),
+})
 ```
 
-The suite checks the documented behavior: the call shape, retry-on-throw, idempotency where promised, and that it doesn't mutate its inputs. First-party adapters run the same suite.
+The suite checks the documented behavior: the call shape, retry-on-throw, idempotency where promised, and that it doesn't mutate its inputs. The failing factory is required, so the retry check always runs. A suite that imports a test runner is ESM only on its subpath. First-party adapters run the same suite.
 
 10.7 **Exception: when the provider is the source of truth.** Where the outside system already owns the facts and our package acts as the in-app interface, the provider sits behind the core instead of at the edge. Entitlements is the case in view: Stripe, Polar or Autumn owns subscriptions, and the package defines a `BillingSource` interface, keeps a local cache in its own models, and answers `can(org, feature)` and usage counters from that cache. A package that uses this exception says so in the registry and documents how fresh the cache is and how it resyncs.
 
@@ -304,36 +310,43 @@ Names claimed by BYO packages. Add a row before you release.
 
 | Package | Plugin id / path prefix | Models | `auth.api` keys | Error codes | Status |
 |---|---|---|---|---|---|
-| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.7.0) |
+| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.8.0) |
 | *`@byo-oss/support`* | *`support`?* | *TBD* | — | — | Planned; net-new, built to this spec, borrowing from upstream `better-helpdesk` (MIT) |
 | *feedback / roadmap / changelog* | *`feedback`?* | *`feedbackPost`, `feedbackVote`, `changelogEntry`?* | — | — | Planned; name not claimed |
 | *org activity feed* | *`activity`?* | *`activityEvent`?* | — | — | Planned |
 | *entitlements* | *`entitlements`?* | *`entitlementPlan`, `usageCounter`?* | — | — | Planned; uses the §10.7 exception (`BillingSource`: Stripe, Polar, Autumn) |
 
-Inbox's `notify` and `processDeliveries` predate the prefix rule in 2.1. They keep their names, but `notify` blocks any other package from using that generic key.
+Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries`, `markRead`, `markSeen`, `markAllRead` and `unreadCount` are all generic. They keep their names until a major release, and block any other package from using them.
 
 ## Compliance today
 
-| Rule | @byo-oss/notifications 0.7.0 |
+| Rule | @byo-oss/notifications 0.8.0 |
 |---|---|
-| 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps` |
+| 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) |
 | 1.4 disclaimer | ✅ |
 | 2.x plugin shape | ✅ |
+| 2.7 adapter queries | ✅ Explicit limits, `in` lists chunked at 90, offset cursor for export |
 | 3.1 identity is the better-auth user | ✅ |
-| 3.2 explicit `onDelete` | ⚠️ References `user` but relies on the migrator's default |
+| 3.2 explicit `onDelete` | ✅ All four references cascade |
 | 3.5 permissions, not roles | n/a |
 | 4.1 endpoint kinds | ✅ |
 | 5.x sweep contract | ✅ `processDeliveries` |
-| 6.2 org cleanup | ❌ `organizationId` has no reference and there's no exported cleanup. Apps have to clean up themselves today |
+| 6.2 org cleanup | ✅ `deleteOrganizationData`, plus automatic cleanup after delete (`organizationCleanup: false` to keep) |
+| 6.3 member cleanup | ✅ `deleteMemberData`, plus automatic cleanup after remove-member and leave |
+| 6.4 user cleanup without foreign keys | ✅ User-delete hook |
 | 7.3 shadcn tokens | ✅ |
-| 7.5 `labels` | ❌ English only |
+| 7.4 keyboard and screen readers | ✅ Live unread count, `aria-describedby`, Escape returns focus |
+| 7.5 `labels` | ✅ |
+| 8.1 README outline | ✅ |
+| 8.2 `AGENTS.md` and skill | ⚠️ `AGENTS.md`; no skill yet |
 | 8.3 example and e2e | ✅ TanStack Start |
-| 9.1 "Outgrowing this" | ⚠️ README points to Novu and betternotify for multi-channel; no mapping or steps |
-| 9.3 data export | ❌ |
-| 9.5 uninstall steps | ❌ |
-| 10.3 exported interface | ✅ `InboxChannel` |
+| 9.1 "Outgrowing this" | ✅ Knock and Novu mapping and steps |
+| 9.2 schema documented | ✅ |
+| 9.3 data export | ✅ `exportNotificationsData` (presence left out, as allowed) |
+| 9.5 uninstall steps | ✅ |
+| 10.3 exported interface | ✅ `InboxChannel`, with `PermanentDeliveryError` |
 | 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` |
-| 10.6 `./testing` suite | ❌ |
+| 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` |
 
 ## Open questions
 
