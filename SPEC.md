@@ -23,7 +23,7 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 
 1.1 Every BYO package is published under the `@byo-oss` npm scope. A product is named for the domain it covers, not for a product noun or brand: `@byo-oss/notifications` (the inbox), `@byo-oss/support` (customer support), `@byo-oss/feedback`. A shared package is named for what it does (`@byo-oss/core`). Repos live in `github.com/byo-oss`. A package we first released under an unscoped name (`better-inbox`) moves to the scope at its next minor release, keeps its version line, and its old name is deprecated on npm with a pointer to the new one.
 
-1.2 Subpath exports, following [`better-inbox/package.json`](https://github.com/better-inbox/better-inbox/blob/main/package.json). Ship ESM and CJS, with types.
+1.2 Subpath exports, following [`notifications/package.json`](https://github.com/byo-oss/notifications/blob/main/package.json). Ship ESM and CJS, with types.
 
 | Export | Contents |
 |---|---|
@@ -48,13 +48,13 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 
 2.2 Model names are claimed globally across BYO. Prefix any generic noun with the product (`feedbackPost`, not `post`). Field names are camelCase and follow better-auth's own: `userId`, `organizationId`, `createdAt`.
 
-2.3 Accept `options.schema` and merge it with `mergeSchema(schema, options.schema)` so apps can rename tables and fields ([`better-inbox/src/index.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/index.ts)).
+2.3 Accept `options.schema` and merge it with `mergeSchema(schema, options.schema)` so apps can rename tables and fields ([`notifications/src/index.ts`](https://github.com/byo-oss/notifications/blob/main/src/index.ts)).
 
-2.4 Define error codes with `defineErrorCodes`, export them as `<ID>_ERROR_CODES`, and attach them as `$ERROR_CODES` ([`src/error-codes.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/error-codes.ts)). Throw with `APIError.from(status, CODE)`.
+2.4 Define error codes with `defineErrorCodes`, export them as `<ID>_ERROR_CODES`, and attach them as `$ERROR_CODES` ([`src/error-codes.ts`](https://github.com/byo-oss/notifications/blob/main/src/error-codes.ts)). Throw with `APIError.from(status, CODE)`.
 
 2.5 Validate options when the plugin is created, and throw a message prefixed with the package name (`[@byo-oss/notifications] routes["x"] uses channel "y", which is not in channels`). A misconfiguration should fail at boot, not on the first request.
 
-2.6 The client plugin declares `$InferServerPlugin` and a `pathMethods` entry for every endpoint the client calls ([`src/client.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/client.ts)).
+2.6 The client plugin declares `$InferServerPlugin` and a `pathMethods` entry for every endpoint the client calls ([`src/client.ts`](https://github.com/byo-oss/notifications/blob/main/src/client.ts)).
 
 ## 3. Identity
 
@@ -66,7 +66,7 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 
 better-auth's built-in migrator defaults to `"cascade"` (`better-auth/dist/db/get-migration.mjs`). Other generators may not, so don't rely on the default.
 
-3.3 Organization support is optional. When a package is given an `organizationId`, it checks that the organization plugin is installed (`plugins.some(p => p.id === "organization")`) and throws `ORGANIZATION_PLUGIN_REQUIRED` if it isn't. Membership is checked against the `member` model ([`better-inbox/src/routes.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/routes.ts)).
+3.3 Organization support is optional. When a package is given an `organizationId`, it checks that the organization plugin is installed (`plugins.some(p => p.id === "organization")`) and throws `ORGANIZATION_PLUGIN_REQUIRED` if it isn't. Membership is checked against the `member` model ([`notifications/src/routes.ts`](https://github.com/byo-oss/notifications/blob/main/src/routes.ts)).
 
 3.4 People without an account (an email sender in support, a visitor voting on public feedback) are stored with an email address and a nullable `userId`. The package links the two when a matching account exists with that email verified.
 
@@ -116,7 +116,7 @@ The default checks the member's org role through the organization plugin's `hasP
 
 ## 5. Background work
 
-A plugin can't schedule anything, so a package that has deferred work (delayed sends, retries, digests, rollups) follows the contract from [`better-inbox/src/delivery.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/delivery.ts):
+A plugin can't schedule anything, so a package that has deferred work (delayed sends, retries, digests, rollups) follows the contract from [`notifications/src/delivery.ts`](https://github.com/byo-oss/notifications/blob/main/src/delivery.ts):
 
 5.1 It exposes one server-only sweep endpoint, `process<Thing>` (e.g. `processDeliveries`), that the app calls from any scheduler.
 
@@ -176,7 +176,7 @@ organization({
 
 8.2 The repo ships an `AGENTS.md`, plus a skill if setup involves wiring several files, so a coding agent can install and use the package correctly.
 
-8.3 Tests run against a real better-auth instance with the memory adapter. The repo includes an example app with an end-to-end suite ([`better-inbox/examples/tanstack-start`](https://github.com/better-inbox/better-inbox/tree/main/examples/tanstack-start)).
+8.3 Tests run against a real better-auth instance with the memory adapter. The repo includes an example app with an end-to-end suite ([`notifications/examples/tanstack-start`](https://github.com/byo-oss/notifications/tree/main/examples/tanstack-start)).
 
 8.4 Versioning: semver, `0.x` until the API settles. Widening the `better-auth` peer range is a minor release; narrowing it is a major one.
 
@@ -202,7 +202,7 @@ BYO is the right default for a young product, and some orgs will outgrow it: the
 
 Like better-auth, which keeps users and sessions in your database but plugs in OAuth providers and email senders, a BYO package owns its data and lets outside services plug in at the edges.
 
-10.1 **What's pluggable.** Any outside service the package *uses* goes behind a provider interface: delivery (email, SMS, push, chat), file storage, AI, search, scheduling. Examples today are inbox's `InboxChannel` ([`better-inbox/src/delivery.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/delivery.ts)) and upstream `better-helpdesk`'s storage, AI, search and job adapters.
+10.1 **What's pluggable.** Any outside service the package *uses* goes behind a provider interface: delivery (email, SMS, push, chat), file storage, AI, search, scheduling. Examples today are inbox's `InboxChannel` ([`notifications/src/delivery.ts`](https://github.com/byo-oss/notifications/blob/main/src/delivery.ts)) and upstream `better-helpdesk`'s storage, AI, search and job adapters.
 
 10.2 **What isn't.** The package's own models are always the store of record, so the hooks, components and permission checks read from one place. A package MUST NOT offer a provider that replaces its core store (an inbox feed backed by Knock, tickets backed by Zendesk). Moving to such a tool goes through the exit path (§9) instead. Mirroring data *out* to a third party while you run both is fine; see P8.
 
