@@ -21,7 +21,7 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 
 ## 1. Naming and packaging
 
-1.1 A product's package name is unscoped `better-<thing>`. Shared packages are published under `@byo-oss/*`. Repos live in `github.com/byo-oss`.
+1.1 Every BYO package is published under the `@byo-oss` npm scope. A product is named for the domain it covers, not for a product noun or brand: `@byo-oss/notifications` (the inbox), `@byo-oss/support` (the helpdesk), `@byo-oss/feedback`. A shared package is named for what it does (`@byo-oss/core`). Repos live in `github.com/byo-oss`. Packages first released under unscoped `better-*` names (`better-inbox`, `better-helpdesk`) move to the scope at their next minor release, and the old name is deprecated on npm with a pointer to the new one.
 
 1.2 Subpath exports, following [`better-inbox/package.json`](https://github.com/better-inbox/better-inbox/blob/main/package.json). Ship ESM and CJS, with types.
 
@@ -30,15 +30,21 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 | `.` | The server plugin (or app builder), its option types, its error codes |
 | `./client` | The better-auth client plugin *(plugin)* |
 | `./react` | Hooks and components |
-| `./<provider>` | Optional adapters for an outside service, e.g. `better-inbox/wraps` |
+| `./<provider>` | Optional adapters for an outside service, e.g. `@byo-oss/notifications/wraps` |
 
 1.3 Every outside service is an optional peer dependency behind its own subpath, through the provider rules in §10. The root export never imports a provider SDK. `better-auth` is a peer dependency, and so is `react` when there's a `./react` export.
 
 1.4 The README says near the top: "Community plugin — not affiliated with the better-auth team." Don't use Better Auth's logo or name it in the package name.
 
+1.5 One package per domain. A package covers its whole domain's data model, at the depth a young product needs:
+- It owns every model in its domain. Preferences belong to `@byo-oss/notifications`; roadmap and changelog belong to `@byo-oss/feedback`. Don't split a domain into sub-packages (`@byo-oss/notification-preferences`).
+- Breadth comes from opt-in options (`feedback({ changelog: true })`) and subpaths (§10), not new packages. A plugin adds tables only for the features that are switched on.
+- Depth stops where the "Outgrowing this" section (§9.1) begins. Below that line the package covers it; above it, the README points to the tool people move to. Packages don't chase feature parity with those tools.
+- Something is a new domain, and gets its own package, only when someone would install it without the others and it has its own models and permissions. Otherwise it's a feature of an existing package.
+
 ## 2. Plugin shape *(plugin)*
 
-2.1 The plugin `id` is one short noun (`inbox`), and it doubles as the endpoint path prefix: `/inbox/list`, `/inbox/mark-read`. Ids, path prefixes, model names and `auth.api` endpoint keys MUST be claimed in the [registry](#registry) before the first release. All plugins share one flat `auth.api` namespace, so a new endpoint key that's generic (`notify`, `list`) SHOULD carry the product name (`listFeedback`, `processFeedbackDigests`).
+2.1 The plugin `id` is the package name without the scope (`@byo-oss/feedback` → `feedback`), and it doubles as the endpoint path prefix: `/feedback/list`, `/feedback/vote`. Notifications predates this rule and keeps the id `inbox` (`/inbox/*`) until a major release. Ids, path prefixes, model names and `auth.api` endpoint keys MUST be claimed in the [registry](#registry) before the first release. All plugins share one flat `auth.api` namespace, so a new endpoint key that's generic (`notify`, `list`) SHOULD carry the product name (`listFeedback`, `processFeedbackDigests`).
 
 2.2 Model names are claimed globally across BYO. Prefix any generic noun with the product (`feedbackPost`, not `post`). Field names are camelCase and follow better-auth's own: `userId`, `organizationId`, `createdAt`.
 
@@ -46,7 +52,7 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 
 2.4 Define error codes with `defineErrorCodes`, export them as `<ID>_ERROR_CODES`, and attach them as `$ERROR_CODES` ([`src/error-codes.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/error-codes.ts)). Throw with `APIError.from(status, CODE)`.
 
-2.5 Validate options when the plugin is created, and throw a message prefixed with the package name (`[better-inbox] routes["x"] uses channel "y", which is not in channels`). A misconfiguration should fail at boot, not on the first request.
+2.5 Validate options when the plugin is created, and throw a message prefixed with the package name (`[@byo-oss/notifications] routes["x"] uses channel "y", which is not in channels`). A misconfiguration should fail at boot, not on the first request.
 
 2.6 The client plugin declares `$InferServerPlugin` and a `pathMethods` entry for every endpoint the client calls ([`src/client.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/client.ts)).
 
@@ -79,7 +85,7 @@ better-auth's built-in migrator defaults to `"cascade"` (`better-auth/dist/db/ge
 4.2 A package that has permission-gated endpoints exports its permission statements as a constant in better-auth's access-control format, ready to spread into the app's catalog:
 
 ```ts
-// better-feedback
+// @byo-oss/feedback
 export const feedbackStatements = {
   feedback: ["read", "create", "moderate", "delete"],
 } as const
@@ -129,7 +135,7 @@ A plugin can't schedule anything, so a package that has deferred work (delayed s
 6.2 A package that stores `organizationId` exports `deleteOrganizationData(auth, organizationId)` and documents how to wire it into the organization plugin:
 
 ```ts
-import { deleteOrganizationData as deleteInboxOrgData } from "better-inbox"
+import { deleteOrganizationData as deleteInboxOrgData } from "@byo-oss/notifications"
 
 organization({
   organizationHooks: {
@@ -206,15 +212,15 @@ Like better-auth, which keeps users and sessions in your database but plugs in O
 - It documents its error semantics: throw to retry, and how to mark a permanent failure.
 - It is versioned with the package. Adding a required method is a major release.
 
-10.4 **First-party adapters.** Each package ships at least one adapter for its pluggable interfaces, on a subpath (`better-inbox/wraps`), with the provider SDK as an optional peer dependency. Wraps is the default for email and SMS.
+10.4 **First-party adapters.** Each package ships at least one adapter for its pluggable interfaces, on a subpath (`@byo-oss/notifications/wraps`), with the provider SDK as an optional peer dependency. Wraps is the default for email and SMS.
 
-10.5 **Community adapters** are separate packages named `better-<thing>-<provider>` (`better-inbox-onesignal`, `better-helpdesk-s3`). They depend on the package's types and nothing else of ours. The package README lists the known ones.
+10.5 **Community adapters** are separate packages outside our scope, named `byo-<name>-<provider>` (`byo-notifications-onesignal`, `byo-support-s3`) or the same under the author's own scope (`@acme/byo-notifications-onesignal`). They depend on the package's types and nothing else of ours. Only first-party packages publish under `@byo-oss`. The package README lists the known ones.
 
 10.6 **Contract tests.** A package with a provider interface SHOULD export a test suite on `./testing` that any adapter can run against itself:
 
 ```ts
-// better-inbox-onesignal/src/channel.test.ts
-import { testChannel } from "better-inbox/testing"
+// byo-notifications-onesignal/src/channel.test.ts
+import { testChannel } from "@byo-oss/notifications/testing"
 testChannel(() => onesignalChannel({ appId: "test", fetch: fakeFetch }))
 ```
 
@@ -286,7 +292,7 @@ One preferences model, per user and per `(type, channel)`, owned by inbox and re
 ## P8. Bridges for the move out
 
 Where a package already has an adapter point, ship a bridge to the tool people most often move to, so they can run both side by side before cutting over:
-- An inbox channel that forwards notifications to Novu or Knock (`better-inbox/novu`).
+- An inbox channel that forwards notifications to Novu or Knock (`@byo-oss/notifications/novu`).
 - A helpdesk relay that mirrors new tickets into Zendesk.
 - A script that turns `export<Thing>Data` output into the destination's import format.
 
@@ -298,10 +304,10 @@ Names claimed by BYO packages. Add a row before you release.
 
 | Package | Plugin id / path prefix | Models | `auth.api` keys | Error codes | Status |
 |---|---|---|---|---|---|
-| `better-inbox` | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.6.0) |
-| `better-helpdesk` | app (own handler under `basePath`) | own migrations | — | — | Upstream app; fork in progress |
+| `@byo-oss/notifications` (published as `better-inbox`) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.6.0) |
+| `@byo-oss/support` (published as `better-helpdesk`) | app (own handler under `basePath`) | own migrations | — | — | Upstream app; fork in progress |
 | *feedback / roadmap / changelog* | *`feedback`?* | *`feedbackPost`, `feedbackVote`, `changelogEntry`?* | — | — | Planned; name not claimed |
-| *org activity feed* | *`activity`?* | *`activityEvent`?* | — | — | Planned; `better-activity` is taken on npm |
+| *org activity feed* | *`activity`?* | *`activityEvent`?* | — | — | Planned |
 | *entitlements* | *`entitlements`?* | *`entitlementPlan`, `usageCounter`?* | — | — | Planned; uses the §10.7 exception (`BillingSource`: Stripe, Polar, Autumn) |
 
 Inbox's `notify` and `processDeliveries` predate the prefix rule in 2.1. They keep their names, but `notify` blocks any other package from using that generic key.
@@ -335,4 +341,4 @@ Inbox's `notify` and `processDeliveries` predate the prefix rule in 2.1. They ke
 2. **Events before or after commit:** better-auth endpoints don't expose a commit hook. Is "after the adapter write returns" good enough, or do packages need to defer until the app's transaction commits?
 3. **Staff permissions:** should the vendor's own staff (support agents, operators) be modeled as better-auth admin-plugin roles, as a permission in an "operator organization", or left entirely to each app's `authorize`?
 4. **The `authorize` contract (4.3):** is a boolean enough, or should it return the missing permissions so packages can show a "missing permission" hint?
-5. **Scope naming:** both `@byo-oss/*` and `better-*` live on npm. Is that split clear enough to users, or should products also be republished under the scope?
+5. ~~**Scope naming:**~~ Resolved 2026-10-20: every package publishes under `@byo-oss` (1.1).
