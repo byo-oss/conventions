@@ -310,7 +310,7 @@ Names claimed by BYO packages. Add a row before you release.
 
 | Package | Plugin id / path prefix | Models | `auth.api` keys | Error codes | Status |
 |---|---|---|---|---|---|
-| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.8.0) |
+| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.8.1) |
 | *`@byo-oss/support`* | *`support`?* | *TBD* | — | — | Planned; net-new, built to this spec, borrowing from upstream `better-helpdesk` (MIT) |
 | *feedback / roadmap / changelog* | *`feedback`?* | *`feedbackPost`, `feedbackVote`, `changelogEntry`?* | — | — | Planned; name not claimed |
 | *org activity feed* | *`activity`?* | *`activityEvent`?* | — | — | Planned |
@@ -320,7 +320,7 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 
 ## Compliance today
 
-| Rule | @byo-oss/notifications 0.8.0 |
+| Rule | @byo-oss/notifications 0.8.1 |
 |---|---|
 | 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) |
 | 1.4 disclaimer | ✅ |
@@ -338,7 +338,7 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 | 7.4 keyboard and screen readers | ✅ Live unread count, `aria-describedby`, Escape returns focus |
 | 7.5 `labels` | ✅ |
 | 8.1 README outline | ✅ |
-| 8.2 `AGENTS.md` and skill | ⚠️ `AGENTS.md`; no skill yet |
+| 8.2 `AGENTS.md` and skill | ✅ `AGENTS.md`, and the `byo-notifications` skill (`npx skills add byo-oss/notifications`, also shipped in the package) |
 | 8.3 example and e2e | ✅ TanStack Start |
 | 9.1 "Outgrowing this" | ✅ Knock and Novu mapping and steps |
 | 9.2 schema documented | ✅ |
