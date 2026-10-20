@@ -11,7 +11,7 @@ The keywords **MUST**, **SHOULD** and **MAY** mean what RFC 2119 says. Part 1 is
 | Tier | What it is | Example | How it integrates |
 |---|---|---|---|
 | **Plugin** | A better-auth plugin. Its tables come from the plugin `schema`, its endpoints from `createAuthEndpoint`. | `better-inbox` | `betterAuth({ plugins: [inbox()] })` |
-| **App** | A larger product with its own migrations and request handler. | `better-helpdesk` | An `identify(request)` adapter that maps a better-auth session to the app's identity |
+| **App** | A larger product with its own migrations and request handler. | None yet (upstream `better-helpdesk` has this shape) | An `identify(request)` adapter that maps a better-auth session to the app's identity |
 
 New packages SHOULD be plugins. A package is an app only when it needs things a plugin can't give it, such as its own route tree, inbound webhooks or a separate database. Rules marked *(plugin)* apply to plugins only. Everything else applies to both tiers.
 
@@ -21,7 +21,7 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 
 ## 1. Naming and packaging
 
-1.1 Every BYO package is published under the `@byo-oss` npm scope. A product is named for the domain it covers, not for a product noun or brand: `@byo-oss/notifications` (the inbox), `@byo-oss/support` (the helpdesk), `@byo-oss/feedback`. A shared package is named for what it does (`@byo-oss/core`). Repos live in `github.com/byo-oss`. Packages first released under unscoped `better-*` names (`better-inbox`, `better-helpdesk`) move to the scope at their next minor release, and the old name is deprecated on npm with a pointer to the new one.
+1.1 Every BYO package is published under the `@byo-oss` npm scope. A product is named for the domain it covers, not for a product noun or brand: `@byo-oss/notifications` (the inbox), `@byo-oss/support` (customer support), `@byo-oss/feedback`. A shared package is named for what it does (`@byo-oss/core`). Repos live in `github.com/byo-oss`. A package we first released under an unscoped name (`better-inbox`) moves to the scope at its next minor release, keeps its version line, and its old name is deprecated on npm with a pointer to the new one.
 
 1.2 Subpath exports, following [`better-inbox/package.json`](https://github.com/better-inbox/better-inbox/blob/main/package.json). Ship ESM and CJS, with types.
 
@@ -68,7 +68,7 @@ better-auth's built-in migrator defaults to `"cascade"` (`better-auth/dist/db/ge
 
 3.3 Organization support is optional. When a package is given an `organizationId`, it checks that the organization plugin is installed (`plugins.some(p => p.id === "organization")`) and throws `ORGANIZATION_PLUGIN_REQUIRED` if it isn't. Membership is checked against the `member` model ([`better-inbox/src/routes.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/routes.ts)).
 
-3.4 People without an account (an email sender in the helpdesk, a visitor voting on public feedback) are stored with an email address and a nullable `userId`. The package links the two when a matching account exists with that email verified.
+3.4 People without an account (an email sender in support, a visitor voting on public feedback) are stored with an email address and a nullable `userId`. The package links the two when a matching account exists with that email verified.
 
 3.5 *(app)* `identify(request)` returns the user, the organizations they are an active member of, and their permissions (§4). It never returns a role name for the package to interpret.
 
@@ -186,7 +186,7 @@ BYO is the right default for a young product, and some orgs will outgrow it: the
 
 9.1 The README has an **"Outgrowing this"** section covering:
 - The signs you've outgrown it, said plainly ("more than N agents", "you need SMS and push").
-- The third-party tools people usually move to (inbox → Novu, Knock or Courier; helpdesk → Zendesk, Intercom or Front; feedback → Canny or Featurebase; entitlements → Stripe Entitlements, Autumn or Orb).
+- The third-party tools people usually move to (inbox → Novu, Knock or Courier; support → Zendesk, Intercom or Front; feedback → Canny or Featurebase; entitlements → Stripe Entitlements, Autumn or Orb).
 - A field mapping from our models to each tool's import format, for at least the most common one.
 - The migration steps: run in parallel, backfill, cut over, uninstall.
 
@@ -202,12 +202,12 @@ BYO is the right default for a young product, and some orgs will outgrow it: the
 
 Like better-auth, which keeps users and sessions in your database but plugs in OAuth providers and email senders, a BYO package owns its data and lets outside services plug in at the edges.
 
-10.1 **What's pluggable.** Any outside service the package *uses* goes behind a provider interface: delivery (email, SMS, push, chat), file storage, AI, search, scheduling. Examples today are inbox's `InboxChannel` ([`better-inbox/src/delivery.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/delivery.ts)) and helpdesk's storage, AI, search and job adapters.
+10.1 **What's pluggable.** Any outside service the package *uses* goes behind a provider interface: delivery (email, SMS, push, chat), file storage, AI, search, scheduling. Examples today are inbox's `InboxChannel` ([`better-inbox/src/delivery.ts`](https://github.com/better-inbox/better-inbox/blob/main/src/delivery.ts)) and upstream `better-helpdesk`'s storage, AI, search and job adapters.
 
 10.2 **What isn't.** The package's own models are always the store of record, so the hooks, components and permission checks read from one place. A package MUST NOT offer a provider that replaces its core store (an inbox feed backed by Knock, tickets backed by Zendesk). Moving to such a tool goes through the exit path (§9) instead. Mirroring data *out* to a third party while you run both is fine; see P8.
 
 10.3 **The interface.**
-- It is exported as a named type from the root (`InboxChannel`, `HelpdeskStorage`).
+- It is exported as a named type from the root (`InboxChannel`, `SupportStorage`).
 - It is the smallest set of async methods the package needs, taking plain objects.
 - It documents its error semantics: throw to retry, and how to mark a permanent failure.
 - It is versioned with the package. Adding a required method is a major release.
@@ -263,15 +263,15 @@ const onEvent = async (event: ByoEvent) => {
 
 ## P2. Notifications go through the inbox
 
-A package sends no user-facing notification email of its own. It emits an event, or calls `auth.api.notify` when inbox is installed, using the event `type` as the notification `type`. That gives every package delay-if-unread, throttling and (once they exist) preferences for free. The exception is email that *is* the record, such as a helpdesk reply to an outside contact. That goes through a mailer (P4).
+A package sends no user-facing notification email of its own. It emits an event, or calls `auth.api.notify` when inbox is installed, using the event `type` as the notification `type`. That gives every package delay-if-unread, throttling and (once they exist) preferences for free. The exception is email that *is* the record, such as a support reply to an outside contact. That goes through a mailer (P4).
 
 ## P3. `@byo-oss/identity`
 
-One `ByoIdentity` type and one better-auth implementation of `identify(request)` (user, active organizations, permissions), so each app package stops writing its own. Helpdesk's [`examples/adapters/identify-better-auth.ts`](https://github.com/better-helpdesk/better-helpdesk/blob/main/examples/adapters/identify-better-auth.ts) is the starting point.
+One `ByoIdentity` type and one better-auth implementation of `identify(request)` (user, active organizations, permissions), so each app package stops writing its own. Upstream `better-helpdesk`'s [`examples/adapters/identify-better-auth.ts`](https://github.com/better-helpdesk/better-helpdesk/blob/main/examples/adapters/identify-better-auth.ts) is the starting point.
 
 ## P4. `@byo-oss/mailer`
 
-A minimal `Mailer = { send(message: { to, subject, html, text, replyTo?, headers? }): Promise<{ id: string }> }` with a Wraps implementation, shared by inbox channels and the helpdesk's outbound email.
+A minimal `Mailer = { send(message: { to, subject, html, text, replyTo?, headers? }): Promise<{ id: string }> }` with a Wraps implementation, shared by inbox channels and support's outbound email.
 
 ## P5. `@byo-oss/core`
 
@@ -293,7 +293,7 @@ One preferences model, per user and per `(type, channel)`, owned by inbox and re
 
 Where a package already has an adapter point, ship a bridge to the tool people most often move to, so they can run both side by side before cutting over:
 - An inbox channel that forwards notifications to Novu or Knock (`@byo-oss/notifications/novu`).
-- A helpdesk relay that mirrors new tickets into Zendesk.
+- A support relay that mirrors new tickets into Zendesk.
 - A script that turns `export<Thing>Data` output into the destination's import format.
 
 Once events (P1) exist, a bridge is just one more event consumer. Parallel running then needs no changes to the package.
@@ -305,7 +305,7 @@ Names claimed by BYO packages. Add a row before you release.
 | Package | Plugin id / path prefix | Models | `auth.api` keys | Error codes | Status |
 |---|---|---|---|---|---|
 | `@byo-oss/notifications` (published as `better-inbox`) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.6.0) |
-| `@byo-oss/support` (published as `better-helpdesk`) | app (own handler under `basePath`) | own migrations | — | — | Upstream app; fork in progress |
+| *`@byo-oss/support`* | *`support`?* | *TBD* | — | — | Planned; net-new, built to this spec, borrowing from upstream `better-helpdesk` (MIT) |
 | *feedback / roadmap / changelog* | *`feedback`?* | *`feedbackPost`, `feedbackVote`, `changelogEntry`?* | — | — | Planned; name not claimed |
 | *org activity feed* | *`activity`?* | *`activityEvent`?* | — | — | Planned |
 | *entitlements* | *`entitlements`?* | *`entitlementPlan`, `usageCounter`?* | — | — | Planned; uses the §10.7 exception (`BillingSource`: Stripe, Polar, Autumn) |
@@ -314,30 +314,30 @@ Inbox's `notify` and `processDeliveries` predate the prefix rule in 2.1. They ke
 
 ## Compliance today
 
-| Rule | better-inbox 0.6.0 | better-helpdesk (fork) |
-|---|---|---|
-| 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps` | App: own layout, plus `relays/wraps` |
-| 1.4 disclaimer | ✅ | ⚠️ Says it isn't affiliated; wording differs |
-| 2.x plugin shape | ✅ | n/a (app) |
-| 3.1 identity is the better-auth user | ✅ | ⚠️ Keeps its own contacts. They need linking to `userId` (3.4) |
-| 3.2 explicit `onDelete` | ⚠️ References `user` but relies on the migrator's default | n/a |
-| 3.5 permissions, not roles | n/a | ⚠️ `isAgent` comes from a role string in the example identify adapter |
-| 4.1 endpoint kinds | ✅ | Partial (agent vs visitor routes) |
-| 5.x sweep contract | ✅ `processDeliveries` | Unchecked |
-| 6.2 org cleanup | ❌ `organizationId` has no reference and there's no exported cleanup. Apps have to clean up themselves today | Unchecked |
-| 7.3 shadcn tokens | ✅ | Uses its own CSS custom properties |
-| 7.5 `labels` | ❌ English only | Localized (en, de, fr, it); `labels` prop unchecked |
-| 8.3 example and e2e | ✅ TanStack Start | ✅ Next.js and TanStack Start (fork branch) |
-| 9.1 "Outgrowing this" | ⚠️ README points to Novu and betternotify for multi-channel; no mapping or steps | ⚠️ Comparison page against Intercom, Zendesk, Chatwoot, Libredesk; no migration guide |
-| 9.3 data export | ❌ | Unchecked |
-| 9.5 uninstall steps | ❌ | Unchecked |
-| 10.3 exported interface | ✅ `InboxChannel` | ✅ Adapters for storage, AI, search, jobs (export names unchecked) |
-| 10.4 first-party adapter | ✅ `better-inbox/wraps` | ✅ `relays/wraps` (fork) |
-| 10.6 `./testing` suite | ❌ | Unchecked |
+| Rule | better-inbox 0.6.0 |
+|---|---|
+| 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps` |
+| 1.4 disclaimer | ✅ |
+| 2.x plugin shape | ✅ |
+| 3.1 identity is the better-auth user | ✅ |
+| 3.2 explicit `onDelete` | ⚠️ References `user` but relies on the migrator's default |
+| 3.5 permissions, not roles | n/a |
+| 4.1 endpoint kinds | ✅ |
+| 5.x sweep contract | ✅ `processDeliveries` |
+| 6.2 org cleanup | ❌ `organizationId` has no reference and there's no exported cleanup. Apps have to clean up themselves today |
+| 7.3 shadcn tokens | ✅ |
+| 7.5 `labels` | ❌ English only |
+| 8.3 example and e2e | ✅ TanStack Start |
+| 9.1 "Outgrowing this" | ⚠️ README points to Novu and betternotify for multi-channel; no mapping or steps |
+| 9.3 data export | ❌ |
+| 9.5 uninstall steps | ❌ |
+| 10.3 exported interface | ✅ `InboxChannel` |
+| 10.4 first-party adapter | ✅ `better-inbox/wraps` |
+| 10.6 `./testing` suite | ❌ |
 
 ## Open questions
 
-1. **Helpdesk's future:** does the fork become a plugin (an `@byo-oss` shim over its tables), or stay an app that follows the app rules? That decides how much of Part 1 it ever needs to meet.
+1. ~~**Helpdesk's future:**~~ Resolved 2026-10-20: `@byo-oss/support` is a net-new package built to this spec. It borrows from upstream `better-helpdesk` where useful, keeping the MIT notice on any code it copies.
 2. **Events before or after commit:** better-auth endpoints don't expose a commit hook. Is "after the adapter write returns" good enough, or do packages need to defer until the app's transaction commits?
 3. **Staff permissions:** should the vendor's own staff (support agents, operators) be modeled as better-auth admin-plugin roles, as a permission in an "operator organization", or left entirely to each app's `authorize`?
 4. **The `authorize` contract (4.3):** is a boolean enough, or should it return the missing permissions so packages can show a "missing permission" hint?
