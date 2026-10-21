@@ -1,6 +1,6 @@
 # BYO conventions
 
-Status: **draft v0**, 2026-10-20. Baseline: `better-auth` `^1.6.23`.
+Status: **draft v0**, 2026-10-20. Baseline: `better-auth` `^1.7.7`. Plugin APIs changed between 1.6 and 1.7, so packages don't support 1.6. 1.7.7 is the first release whose first-party SQL adapters guard the `UPDATE` itself in `adapter.incrementOne` (Drizzle; Kysely from 1.7.0), which sweeps and counters rely on to be race-safe.
 
 These are the rules BYO packages follow so they work as one system instead of a pile of plugins. A BYO package is a library, not a service: it runs inside your app, keeps its data in your database, and uses better-auth users and organizations as its identity.
 
