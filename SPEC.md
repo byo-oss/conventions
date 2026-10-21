@@ -13,7 +13,7 @@ The keywords **MUST**, **SHOULD** and **MAY** mean what RFC 2119 says. Part 1 is
 | **Plugin** | A better-auth plugin. Its tables come from the plugin `schema`, its endpoints from `createAuthEndpoint`. | `@byo-oss/notifications` | `betterAuth({ plugins: [inbox()] })` |
 | **App** | A larger product with its own migrations and request handler. | None yet (upstream `better-helpdesk` has this shape) | An `identify(request)` adapter that maps a better-auth session to the app's identity |
 
-New packages SHOULD be plugins. A package is an app only when it needs things a plugin can't give it, such as its own route tree, inbound webhooks or a separate database. Rules marked *(plugin)* apply to plugins only. Everything else applies to both tiers.
+New packages SHOULD be plugins. A package is an app only when it needs things a plugin can't give it, such as its own route tree or a separate database. Inbound webhooks don't make a package an app: a plugin endpoint can authenticate the sender instead of a session (4.1), as `@byo-oss/support`'s `/support/inbound` does. Rules marked *(plugin)* apply to plugins only. Everything else applies to both tiers.
 
 ---
 
@@ -38,7 +38,7 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 
 1.5 One package per domain. A package covers its whole domain's data model, at the depth a young product needs:
 - It owns every model in its domain. Preferences belong to `@byo-oss/notifications`; roadmap and changelog belong to `@byo-oss/feedback`. Don't split a domain into sub-packages (`@byo-oss/notification-preferences`).
-- Breadth comes from opt-in options (`feedback({ changelog: true })`) and subpaths (§10), not new packages. A plugin adds tables only for the features that are switched on.
+- Breadth comes from opt-in options (`feedback({ changelog: true })`) and subpaths (§10), not new packages. A plugin adds tables only for the features that are switched on. When tables depend on options, the README says which, and that the auth config the migration CLI reads must switch on the same features as production, or the generated migration leaves those tables out.
 - Depth stops where the "Outgrowing this" section (§9.1) begins. Below that line the package covers it; above it, the README points to the tool people move to. Packages don't chase feature parity with those tools.
 - Something is a new domain, and gets its own package, only when someone would install it without the others and it has its own models and permissions. Otherwise it's a feature of an existing package.
 
@@ -76,13 +76,14 @@ better-auth's built-in migrator defaults to `"cascade"` (`better-auth/dist/db/ge
 
 ## 4. Access and permissions
 
-4.1 Every endpoint is one of three kinds, and its docs say which:
+4.1 Every endpoint is one of four kinds, and its docs say which:
 
 | Kind | How | Used for |
 |---|---|---|
 | **Server-only** | `createAuthEndpoint.serverOnly` | Writes the app makes on someone's behalf (`notify`) and sweeps (`processDeliveries`) |
 | **Own rows** | `sessionMiddleware`, every query filtered by `session.user.id` | A person's own data (list or mark their notifications) |
 | **Permission-gated** | Session plus a permission check (4.3) | Acting on other people's data (moderating feedback, replying to tickets, reading an org's activity) |
+| **Source-authenticated** | No session. The endpoint checks the sender with a secret or signature from the package's options (compared in constant time) before it reads the body, and answers 401 otherwise. It never acts as a user, and it answers 2xx for every outcome it decided, so the sender doesn't retry | Inbound webhooks and relays (support's `/support/inbound`) |
 
 4.2 A package that has permission-gated endpoints exports its permission statements as a constant in better-auth's access-control format, ready to spread into the app's catalog:
 
