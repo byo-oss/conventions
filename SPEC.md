@@ -4,7 +4,7 @@ Status: **draft v0**, 2026-10-20. Baseline: `better-auth` `^1.7.7`. Plugin APIs 
 
 These are the rules BYO packages follow so they work as one system instead of a pile of plugins. A BYO package is a library, not a service: it runs inside your app, keeps its data in your database, and uses better-auth users and organizations as its identity.
 
-The keywords **MUST**, **SHOULD** and **MAY** mean what RFC 2119 says. Part 1 is **required**: every rule there can be met today with plain better-auth primitives, and most are drawn from what `@byo-oss/notifications` (formerly `better-inbox`) already does. Part 2 is **proposed**: shared packages and contracts that don't exist yet. Nothing in Part 1 depends on Part 2.
+The keywords **MUST**, **SHOULD** and **MAY** mean what RFC 2119 says. Part 1 is **required**: every rule there can be met today with plain better-auth primitives plus the two shared packages in §11 (`@byo-oss/core`, `@byo-oss/mailer`), and most are drawn from what `@byo-oss/notifications` (formerly `better-inbox`) and `@byo-oss/support` do. Part 2 is **proposed**: shared packages and contracts that aren't proven yet. Nothing in Part 1 depends on Part 2.
 
 ## Tiers
 
@@ -235,6 +235,26 @@ The suite checks the documented behavior: the call shape, retry-on-throw, idempo
 
 10.7 **Exception: when the provider is the source of truth.** Where the outside system already owns the facts and our package acts as the in-app interface, the provider sits behind the core instead of at the edge. Entitlements is the case in view: Stripe, Polar or Autumn owns subscriptions, and the package defines a `BillingSource` interface, keeps a local cache in its own models, and answers `can(org, feature)` and usage counters from that cache. A package that uses this exception says so in the registry and documents how fresh the cache is and how it resyncs.
 
+## 11. Shared packages
+
+Promoted from Part 2 (P4, P5) on 2026-10-21, after `@byo-oss/support` shipped on both.
+
+11.1 **`byo` hooks (`@byo-oss/core`).** A plugin with a sweep (§5), organization cleanup (§6.2) or member cleanup (§6.3) MUST also declare them under a `byo` key, typed with `ByoPlugin` from `@byo-oss/core` (`byo: { sweep, deleteOrganizationData, deleteMemberData }`), so `sweepAll`, `deleteOrganizationData` and `deleteMemberData` reach it. It keeps exporting its own functions and sweep endpoint; `byo` is a way to reach them, not a replacement. Hooks read the adapter with better-auth's `getCurrentAdapter`, so a fan-out called inside the app's transaction joins it.
+
+```ts
+return {
+  id: "feedback",
+  // …
+  byo: {
+    sweep: (auth) => processFeedbackDigests(auth),   // { sent, failed, hasMore }
+    deleteOrganizationData: (auth, id) => deleteOrganizationData(auth, id),
+    deleteMemberData: (auth, input) => deleteMemberData(auth, input),
+  },
+} satisfies ByoPlugin<BetterAuthPlugin>
+```
+
+11.2 **Email through `@byo-oss/mailer`.** A package that sends email itself (email that *is* the record, P2) MUST take a `Mailer` from `@byo-oss/mailer` instead of a provider client: `send({ to, subject, html, text, replyTo?, headers? })` resolves `{ id, messageId? }`, a throw means retry, and a `PermanentMailError` means fail. A package that threads replies stores the returned `messageId` as the sent Message-ID. The default adapter is `wrapsMailer` (`@byo-oss/mailer/wraps`); `sesMailer` and `emailSdkMailer` are the others, and `testMailer` (`@byo-oss/mailer/testing`) is the contract suite every adapter, first-party or community, runs (§10.6).
+
 ---
 
 # Part 2: Proposed (non-normative)
@@ -272,7 +292,7 @@ const onEvent = async (event: ByoEvent) => {
 
 ## P2. Notifications go through the inbox
 
-A package sends no user-facing notification email of its own. It emits an event, or calls `auth.api.notify` when inbox is installed, using the event `type` as the notification `type`. That gives every package delay-if-unread, throttling and (once they exist) preferences for free. The exception is email that *is* the record, such as a support reply to an outside contact. That goes through a mailer (P4).
+A package sends no user-facing notification email of its own. It emits an event, or calls `auth.api.notify` when inbox is installed, using the event `type` as the notification `type`. That gives every package delay-if-unread, throttling and (once they exist) preferences for free. The exception is email that *is* the record, such as a support reply to an outside contact. That goes through a mailer (§11.2).
 
 ## P3. `@byo-oss/identity`
 
@@ -280,23 +300,11 @@ One `ByoIdentity` type and one better-auth implementation of `identify(request)`
 
 ## P4. `@byo-oss/mailer`
 
-A minimal `Mailer = { send(message: { to, subject, html, text, replyTo?, headers? }): Promise<{ id: string; messageId?: string }> }`, shared by inbox channels and support's outbound email. A throw means retry; a `PermanentMailError` means fail. `messageId` is the RFC 5322 `Message-ID` actually sent, only when the adapter knows it.
-
-Released as `@byo-oss/mailer` 0.1.0 (2026-10-21); support's outbound email is its first user. First-party adapters, each on its own subpath with an optional peer dependency (§10.4):
-
-- `./wraps`: `wrapsMailer`, AWS SES through `@wraps.dev/email`. The default.
-- `./ses`: `sesMailer`, an `SESv2Client` the app already has.
-- `./email-sdk`: `emailSdkMailer`, a client the app builds with `@opencoredev/email-sdk`, limited to adapters that carry custom headers and a reply-to address.
-
-`./testing` exports `testMailer`, the contract suite each adapter runs (§10.6).
+Promoted to Part 1 as §11.2. Released as `@byo-oss/mailer` (0.1.0 on 2026-10-21) with `./wraps`, `./ses`, `./email-sdk` and the `./testing` suite.
 
 ## P5. `@byo-oss/core`
 
-- `sweepAll(auth)` runs every installed package's `process*` endpoint, so one cron route serves them all.
-- `deleteOrganizationData` and `deleteMemberData` fan-out across every installed package.
-- The `ByoEvent` type and an event bus.
-
-Released as `@byo-oss/core` 0.1.0 (2026-10-21) with all three; support is its first user. Notifications adopts it next.
+Promoted to Part 1 as §11.1 (`byo` hooks for `sweepAll` and the cleanup fan-out). Released as `@byo-oss/core` (0.1.0 on 2026-10-21). Its `ByoEvent` type and event bus stay with P1, which is still proposed: notifications doesn't emit events yet.
 
 ## P6. Agent-native operations
 
@@ -362,6 +370,8 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 | 10.3 exported interface | ✅ `InboxChannel`, with `PermanentDeliveryError` | ✅ `SupportInboundSource`, `SupportStorage`; mail via `@byo-oss/mailer` |
 | 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` | ✅ `wrapsInbound` (`./wraps`), `s3Storage` (`./s3`) |
 | 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` | ✅ Inbound-source and storage suites |
+| 11.1 `byo` hooks | ❌ Not declared yet (roadmap: notifications adopts core) | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` |
+| 11.2 email through `@byo-oss/mailer` | ❌ Its email channel uses `@wraps.dev/email` directly (moves onto the mailer next) | ✅ `mailer` option takes a `Mailer`; stores `messageId` for threading |
 
 ## Open questions
 
