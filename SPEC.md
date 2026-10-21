@@ -258,6 +258,8 @@ type ByoEvent = {
 
 Each package accepts `onEvent?: (event) => Promise<void> | void`. Delivery is in-process and best-effort, and an error never fails the request that caused it. A consumer that needs durability writes its own rows, the way inbox does with `notificationDelivery`.
 
+**Status:** proven by `@byo-oss/support` 0.1.0, which emits eight event types through `onEvent`; `@byo-oss/core`'s bus routes `support.agent.replied` into `auth.api.notify`. `@byo-oss/notifications` doesn't emit events yet. Whether events wait for the app's transaction to commit is still open (open question 2): support emits after the adapter write returns.
+
 Example wiring, which `@byo-oss/core` could reduce to one line:
 
 ```ts
@@ -279,7 +281,7 @@ One `ByoIdentity` type and one better-auth implementation of `identify(request)`
 
 A minimal `Mailer = { send(message: { to, subject, html, text, replyTo?, headers? }): Promise<{ id: string; messageId?: string }> }`, shared by inbox channels and support's outbound email. A throw means retry; a `PermanentMailError` means fail. `messageId` is the RFC 5322 `Message-ID` actually sent, only when the adapter knows it.
 
-In development, not yet on npm. First-party adapters, each on its own subpath with an optional peer dependency (§10.4):
+Released as `@byo-oss/mailer` 0.1.0 (2026-10-21); support's outbound email is its first user. First-party adapters, each on its own subpath with an optional peer dependency (§10.4):
 
 - `./wraps`: `wrapsMailer`, AWS SES through `@wraps.dev/email`. The default.
 - `./ses`: `sesMailer`, an `SESv2Client` the app already has.
@@ -292,6 +294,8 @@ In development, not yet on npm. First-party adapters, each on its own subpath wi
 - `sweepAll(auth)` runs every installed package's `process*` endpoint, so one cron route serves them all.
 - `deleteOrganizationData` and `deleteMemberData` fan-out across every installed package.
 - The `ByoEvent` type and an event bus.
+
+Released as `@byo-oss/core` 0.1.0 (2026-10-21) with all three; support is its first user. Notifications adopts it next.
 
 ## P6. Agent-native operations
 
@@ -319,7 +323,9 @@ Names claimed by BYO packages. Add a row before you release.
 | Package | Plugin id / path prefix | Models | `auth.api` keys | Error codes | Status |
 |---|---|---|---|---|---|
 | `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.8.1) |
-| *`@byo-oss/support`* | *`support`?* | *TBD* | — | — | Planned; net-new, built to this spec, borrowing from upstream `better-helpdesk` (MIT) |
+| `@byo-oss/support` | `support` → `/support/*` | `supportTicket`, `supportMessage`, `supportTicketTag`, `supportCannedReply`, `supportCounter`, `supportDelivery`, `supportAttachment` | `createSupportTicket`, `listMySupportTickets`, `getSupportTicket`, `replyToSupportTicket`, `updateMySupportTicket`, `markSupportTicketSeen`, `listSupportTickets`, `getSupportTicketAsAgent`, `replyAsSupportAgent`, `updateSupportTickets`, `markSupportTicketSeenAsAgent`, `listSupportTags`, `listSupportCannedReplies`, `saveSupportCannedReply`, `deleteSupportCannedReply`, `deleteSupportTickets`, `mergeSupportTickets`, `uploadSupportAttachment`, `getSupportAttachment`, `uploadSupportAttachmentAsAgent`, `getSupportAttachmentAsAgent`, `processSupportDeliveries`, `receiveSupportEmail` | `SUPPORT_ERROR_CODES` | Released (0.1.0); borrows from upstream `better-helpdesk` (MIT, NOTICE) |
+| `@byo-oss/core` (shared) | — | — | — | — | Released (0.1.0): `listByoPlugins`, `sweepAll`, `createEventBus`, org/member cleanup fan-out |
+| `@byo-oss/mailer` (shared, P4) | — | — | — | — | Released (0.1.0): `Mailer` interface, `memoryMailer`, `wrapsMailer` (`./wraps`), `sesMailer` (`./ses`), `emailSdkMailer` (`./email-sdk`), contract suite (`./testing`) |
 | *feedback / roadmap / changelog* | *`feedback`?* | *`feedbackPost`, `feedbackVote`, `changelogEntry`?* | — | — | Planned; name not claimed |
 | *org activity feed* | *`activity`?* | *`activityEvent`?* | — | — | Planned |
 | *entitlements* | *`entitlements`?* | *`entitlementPlan`, `usageCounter`?* | — | — | Planned; uses the §10.7 exception (`BillingSource`: Stripe, Polar, Autumn) |
@@ -328,33 +334,33 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 
 ## Compliance today
 
-| Rule | @byo-oss/notifications 0.8.1 |
-|---|---|
-| 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) |
-| 1.4 disclaimer | ✅ |
-| 2.x plugin shape | ✅ |
-| 2.7 adapter queries | ✅ Explicit limits, `in` lists chunked at 90, offset cursor for export |
-| 3.1 identity is the better-auth user | ✅ |
-| 3.2 explicit `onDelete` | ✅ All four references cascade |
-| 3.5 permissions, not roles | n/a |
-| 4.1 endpoint kinds | ✅ |
-| 5.x sweep contract | ✅ `processDeliveries` |
-| 6.2 org cleanup | ✅ `deleteOrganizationData`, plus automatic cleanup after delete (`organizationCleanup: false` to keep) |
-| 6.3 member cleanup | ✅ `deleteMemberData`, plus automatic cleanup after remove-member and leave |
-| 6.4 user cleanup without foreign keys | ✅ User-delete hook |
-| 7.3 shadcn tokens | ✅ |
-| 7.4 keyboard and screen readers | ✅ Live unread count, `aria-describedby`, Escape returns focus |
-| 7.5 `labels` | ✅ |
-| 8.1 README outline | ✅ |
-| 8.2 `AGENTS.md` and skill | ✅ `AGENTS.md`, and the `byo-notifications` skill (`npx skills add byo-oss/notifications`, also shipped in the package) |
-| 8.3 example and e2e | ✅ TanStack Start |
-| 9.1 "Outgrowing this" | ✅ Knock and Novu mapping and steps |
-| 9.2 schema documented | ✅ |
-| 9.3 data export | ✅ `exportNotificationsData` (presence left out, as allowed) |
-| 9.5 uninstall steps | ✅ |
-| 10.3 exported interface | ✅ `InboxChannel`, with `PermanentDeliveryError` |
-| 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` |
-| 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` |
+| Rule | @byo-oss/notifications 0.8.1 | @byo-oss/support 0.1.0 |
+|---|---|---|
+| 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) | ✅ `.`, `./client`, `./react`, `./wraps`, `./s3`, `./testing` (ESM only) |
+| 1.4 disclaimer | ✅ | ✅ |
+| 2.x plugin shape | ✅ | ✅ Requires the organization plugin (3.3) |
+| 2.7 adapter queries | ✅ Explicit limits, `in` lists chunked at 90, offset cursor for export | ✅ Explicit limits, `in` lists chunked at 90, keyset cursors |
+| 3.1 identity is the better-auth user | ✅ | ✅ Plus account-less requesters by verified email (3.4) |
+| 3.2 explicit `onDelete` | ✅ All four references cascade | ✅ 12 references; `mergedIntoId` deliberately has no FK (nulled in code) |
+| 3.5 permissions, not roles | n/a | ✅ `supportStatements`, staff via `staffOrganizationId` or `authorize` |
+| 4.1 endpoint kinds | ✅ | ✅ Plus a source-authenticated inbound endpoint (`/support/inbound`) |
+| 5.x sweep contract | ✅ `processDeliveries` | ✅ `processSupportDeliveries` |
+| 6.2 org cleanup | ✅ `deleteOrganizationData`, plus automatic cleanup after delete (`organizationCleanup: false` to keep) | ✅ `deleteOrganizationData`, plus automatic cleanup after delete |
+| 6.3 member cleanup | ✅ `deleteMemberData`, plus automatic cleanup after remove-member and leave | ✅ `deleteMemberData` (unassigns), plus automatic cleanup |
+| 6.4 user cleanup without foreign keys | ✅ User-delete hook | ✅ User-delete hook; tickets in a team org stay without the person |
+| 7.3 shadcn tokens | ✅ | ✅ |
+| 7.4 keyboard and screen readers | ✅ Live unread count, `aria-describedby`, Escape returns focus | ✅ Tested in happy-dom; 44 px targets on touch |
+| 7.5 `labels` | ✅ | ✅ |
+| 8.1 README outline | ✅ | ✅ |
+| 8.2 `AGENTS.md` and skill | ✅ `AGENTS.md`, and the `byo-notifications` skill (`npx skills add byo-oss/notifications`, also shipped in the package) | ✅ `AGENTS.md`, `support-setup` skill (shipped in the package) |
+| 8.3 example and e2e | ✅ TanStack Start | ✅ TanStack Start |
+| 9.1 "Outgrowing this" | ✅ Knock and Novu mapping and steps | ✅ Zendesk mapping and steps |
+| 9.2 schema documented | ✅ | ✅ |
+| 9.3 data export | ✅ `exportNotificationsData` (presence left out, as allowed) | ✅ `exportSupportData` |
+| 9.5 uninstall steps | ✅ | ✅ |
+| 10.3 exported interface | ✅ `InboxChannel`, with `PermanentDeliveryError` | ✅ `SupportInboundSource`, `SupportStorage`; mail via `@byo-oss/mailer` |
+| 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` | ✅ `wrapsInbound` (`./wraps`), `s3Storage` (`./s3`) |
+| 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` | ✅ Inbound-source and storage suites |
 
 ## Open questions
 
