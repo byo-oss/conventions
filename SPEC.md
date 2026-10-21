@@ -322,7 +322,7 @@ Names claimed by BYO packages. Add a row before you release.
 
 | Package | Plugin id / path prefix | Models | `auth.api` keys | Error codes | Status |
 |---|---|---|---|---|---|
-| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.8.1) |
+| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.9.0); its `better-auth` peer is still `^1.6.23`, below the baseline, until the next release |
 | `@byo-oss/support` | `support` → `/support/*` | `supportTicket`, `supportMessage`, `supportTicketTag`, `supportCannedReply`, `supportCounter`, `supportDelivery`, `supportAttachment` | `createSupportTicket`, `listMySupportTickets`, `getSupportTicket`, `replyToSupportTicket`, `updateMySupportTicket`, `markSupportTicketSeen`, `listSupportTickets`, `getSupportTicketAsAgent`, `replyAsSupportAgent`, `updateSupportTickets`, `markSupportTicketSeenAsAgent`, `listSupportTags`, `listSupportCannedReplies`, `saveSupportCannedReply`, `deleteSupportCannedReply`, `deleteSupportTickets`, `mergeSupportTickets`, `uploadSupportAttachment`, `getSupportAttachment`, `uploadSupportAttachmentAsAgent`, `getSupportAttachmentAsAgent`, `processSupportDeliveries`, `receiveSupportEmail` | `SUPPORT_ERROR_CODES` | Released (0.1.0); borrows from upstream `better-helpdesk` (MIT, NOTICE) |
 | `@byo-oss/core` (shared) | — | — | — | — | Released (0.1.0): `listByoPlugins`, `sweepAll`, `createEventBus`, org/member cleanup fan-out |
 | `@byo-oss/mailer` (shared, P4) | — | — | — | — | Released (0.1.0): `Mailer` interface, `memoryMailer`, `wrapsMailer` (`./wraps`), `sesMailer` (`./ses`), `emailSdkMailer` (`./email-sdk`), contract suite (`./testing`) |
@@ -334,12 +334,12 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 
 ## Compliance today
 
-| Rule | @byo-oss/notifications 0.8.1 | @byo-oss/support 0.1.0 |
+| Rule | @byo-oss/notifications 0.9.0 | @byo-oss/support 0.1.0 |
 |---|---|---|
 | 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) | ✅ `.`, `./client`, `./react`, `./wraps`, `./s3`, `./testing` (ESM only) |
 | 1.4 disclaimer | ✅ | ✅ |
 | 2.x plugin shape | ✅ | ✅ Requires the organization plugin (3.3) |
-| 2.7 adapter queries | ✅ Explicit limits, `in` lists chunked at 90, offset cursor for export | ✅ Explicit limits, `in` lists chunked at 90, keyset cursors |
+| 2.7 adapter queries | ✅ Explicit limits, `in` lists chunked at 90, keyset cursor for export | ✅ Explicit limits, `in` lists chunked at 90, keyset cursors |
 | 3.1 identity is the better-auth user | ✅ | ✅ Plus account-less requesters by verified email (3.4) |
 | 3.2 explicit `onDelete` | ✅ All four references cascade | ✅ 12 references; `mergedIntoId` deliberately has no FK (nulled in code) |
 | 3.5 permissions, not roles | n/a | ✅ `supportStatements`, staff via `staffOrganizationId` or `authorize` |
