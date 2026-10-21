@@ -277,7 +277,15 @@ One `ByoIdentity` type and one better-auth implementation of `identify(request)`
 
 ## P4. `@byo-oss/mailer`
 
-A minimal `Mailer = { send(message: { to, subject, html, text, replyTo?, headers? }): Promise<{ id: string }> }` with a Wraps implementation, shared by inbox channels and support's outbound email.
+A minimal `Mailer = { send(message: { to, subject, html, text, replyTo?, headers? }): Promise<{ id: string; messageId?: string }> }`, shared by inbox channels and support's outbound email. A throw means retry; a `PermanentMailError` means fail. `messageId` is the RFC 5322 `Message-ID` actually sent, only when the adapter knows it.
+
+In development, not yet on npm. First-party adapters, each on its own subpath with an optional peer dependency (§10.4):
+
+- `./wraps`: `wrapsMailer`, AWS SES through `@wraps.dev/email`. The default.
+- `./ses`: `sesMailer`, an `SESv2Client` the app already has.
+- `./email-sdk`: `emailSdkMailer`, a client the app builds with `@opencoredev/email-sdk`, limited to adapters that carry custom headers and a reply-to address.
+
+`./testing` exports `testMailer`, the contract suite each adapter runs (§10.6).
 
 ## P5. `@byo-oss/core`
 
