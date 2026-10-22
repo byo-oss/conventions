@@ -183,7 +183,7 @@ organization({
 
 8.3 Tests run against a real better-auth instance with the memory adapter. The repo includes an example app with an end-to-end suite ([`notifications/examples/tanstack-start`](https://github.com/byo-oss/notifications/tree/main/examples/tanstack-start)).
 
-8.4 Versioning: semver, `0.x` until the API settles. Widening the `better-auth` peer range is a minor release; narrowing it is a major one. Before 1.0 the minor version is the breaking release (`0.x` caret ranges don't cross minors), so narrowing the peer is a minor bump in `0.x`.
+8.4 Versioning: semver, `0.x` until the API settles. Widening the `better-auth` peer range is a minor release; narrowing it is a major one.
 
 ## 9. Exit path
 
@@ -279,7 +279,7 @@ type ByoEvent = {
 
 Each package accepts `onEvent?: (event) => Promise<void> | void`. A write made through the base adapter has committed when it returns, so its event fires then. A write that joined a caller's transaction (`getCurrentAdapter` inside `runWithTransaction`, imported from `@better-auth/core/context`) fires its event through `queueAfterTransactionHook` from the same module: after the commit, never on rollback. Apps join through `runWithTransaction`. A plain `adapter.transaction` isn't joined, so the package's writes commit at once, along with their events. Wrapping with `runWithAdapter(trx, …)` joins the writes, but their events fire before the commit. Delivery is in-process and best-effort. A handler's error is caught and logged, and never fails the request or sweep that caused it. `<package>` equals the plugin id except for notifications (`inbox`, 2.1), whose events are `notifications.*`. A consumer that needs durability writes its own rows, the way inbox does with `notificationDelivery`.
 
-**Status:** proven by `@byo-oss/support`, which emits eight event types through `onEvent`, and by `@byo-oss/notifications`, which emits `notifications.notification.created` and `notifications.delivery.failed`. Both emit after commit as above from the upcoming releases, support 0.1.1 and notifications 0.10.0. Support 0.1.0 emits when the adapter write returns, and notifications 0.9.0 and earlier emit no events. `@byo-oss/core`'s bus routes `support.agent.replied` into `auth.api.notify`.
+**Status:** proven by `@byo-oss/support`, which emits eight event types through `onEvent`, and by `@byo-oss/notifications`, which emits `notifications.notification.created` and `notifications.delivery.failed`. Both emit after commit as above from the upcoming releases, support 0.2.0 and notifications 0.10.0. Support 0.1.0 emits when the adapter write returns, and notifications 0.9.0 and earlier emit no events. `@byo-oss/core`'s bus routes `support.agent.replied` into `auth.api.notify`.
 
 Example wiring, which `@byo-oss/core` could reduce to one line:
 
@@ -372,7 +372,7 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 | 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` | ✅ Inbound-source and storage suites |
 | 11.1 `byo` hooks | ❌ Not declared in 0.9.0. ⚠️ The upcoming 0.10.0 declares `sweep`, `deleteOrganizationData` and `deleteMemberData`, with two deviations: its sweep runs on the base adapter, so it never joins a caller's transaction, and the cleanups are left out of `byo` when `organizationCleanup: false` | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` |
 | 11.2 email through `@byo-oss/mailer` | ❌ Its email channel uses `@wraps.dev/email` directly (moves onto the mailer next) | ✅ `mailer` option takes a `Mailer`; stores `messageId` for threading |
-| P1 domain events (proposed) | ❌ No events in 0.9.0. The upcoming 0.10.0 emits `notifications.notification.created` and `notifications.delivery.failed`, after commit | ✅ Eight types. 0.1.0 emits when the adapter write returns; the upcoming 0.1.1 waits for the caller's commit |
+| P1 domain events (proposed) | ❌ No events in 0.9.0. The upcoming 0.10.0 emits `notifications.notification.created` and `notifications.delivery.failed`, after commit | ✅ Eight types. 0.1.0 emits when the adapter write returns; the upcoming 0.2.0 waits for the caller's commit |
 
 ## Open questions
 
