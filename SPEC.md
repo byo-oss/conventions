@@ -183,7 +183,13 @@ organization({
 
 8.3 Tests run against a real better-auth instance with the memory adapter. The repo includes an example app with an end-to-end suite ([`notifications/examples/tanstack-start`](https://github.com/byo-oss/notifications/tree/main/examples/tanstack-start)).
 
-8.4 Versioning: semver, `0.x` until the API settles. Widening the `better-auth` peer range is a minor release; narrowing it is a major one.
+8.4 Versioning is strict [semver](https://semver.org): a release's number is set by its most significant change, never by how big it feels.
+
+- **Breaking** (major): an app that upgrades without changing its code can fail to install, compile, run or keep its data. That covers a removed or renamed export, option, endpoint, response field, error code or label key; a narrower input or type; a new required option or peer dependency; a narrowed peer range; a schema change that breaks reading existing rows; and a changed default that alters what is stored or sent.
+- **Feature** (minor): something new that existing callers don't have to act on, such as an export, an optional option or field, an endpoint, a label key or a widened peer range.
+- **Fix** (patch): behaviour brought in line with the docs, with no change to the API.
+
+Before 1.0, `0.x` caret ranges don't cross minors, so a breaking change bumps the minor. Features bump the minor too, and only fixes ship in a patch, so a patch is always safe to take. A breaking change never ships in a patch. Changed default wording is not breaking (every string has a label override), but the release notes name it.
 
 ## 9. Exit path
 
