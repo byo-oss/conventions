@@ -31,6 +31,7 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 | `./client` | The better-auth client plugin *(plugin)* |
 | `./react` | Hooks and components |
 | `./<provider>` | Optional adapters for an outside service, e.g. `@byo-oss/notifications/wraps` |
+| `./<data>` | Optional. Data and pure helpers that import nothing, so a browser or a static page can load them, e.g. `@byo-oss/entitlements/catalog` |
 
 1.3 Every outside service is an optional peer dependency behind its own subpath, through the provider rules in §10. The root export never imports a provider SDK. `better-auth` is a peer dependency, and so is `react` when there's a `./react` export.
 
@@ -56,7 +57,7 @@ New packages SHOULD be plugins. A package is an app only when it needs things a 
 
 2.6 The client plugin declares `$InferServerPlugin` and a `pathMethods` entry for every endpoint the client calls ([`src/client.ts`](https://github.com/byo-oss/notifications/blob/main/src/client.ts)).
 
-2.7 Adapter queries hold up on every adapter. Pass an explicit `limit` to `findMany`, which returns 100 rows otherwise. Keep `in` lists to 90 values or fewer, chunking longer ones, because Cloudflare D1 binds at most 100 parameters per query. Don't page with `id > cursor`: the memory adapter sorts strings with `localeCompare` but compares them with `>`, so the two disagree.
+2.7 Adapter queries hold up on every adapter. Pass an explicit `limit` to `findMany`, which returns 100 rows otherwise. Keep `in` lists to 90 values or fewer, chunking longer ones, because Cloudflare D1 binds at most 100 parameters per query. Don't page with `id > cursor`: the memory adapter sorts strings with `localeCompare` but compares them with `>`, so the two disagree. The memory adapter's `incrementOne` returns its live row, which later increments keep changing, so decide whether a call was the first (the first refusal in a period, say) with a guard such as `refused eq 0` in the `where`, as entitlements' `consumeUsage` does, not by reading the returned count. On Kysely with Postgres, `findMany` with `select` and a `sortBy` on a column outside the select fails (`column "…" does not exist`).
 
 ## 3. Identity
 
@@ -123,7 +124,7 @@ A plugin can't schedule anything, so a package that has deferred work (delayed s
 
 5.1 It exposes one server-only sweep endpoint, `process<Thing>` (e.g. `processDeliveries`), that the app calls from any scheduler.
 
-5.2 A sweep claims each row atomically with a lease before working on it, so sweeps can overlap safely. A claim older than the lease is treated as dead and retried. Failures back off and are marked `failed` after `maxAttempts`.
+5.2 A sweep claims each row atomically with a lease before working on it, so sweeps can overlap safely. A claim older than the lease is treated as dead and retried. Failures back off and are marked `failed` after `maxAttempts`. A sweep whose rows are a cache of provider state (§10.7) MAY instead keep a row's last good state after `maxAttempts`: it records the error, counts the row as `failed` and retries it at the normal pace, rather than freezing it. Entitlements' snapshot resync does this: the snapshot keeps its plan, stores `syncError` and is retried at `maxAge`.
 
 5.3 A sweep works through at most `batchSize` rows and returns counts plus `hasMore`: `{ sent, skipped, retrying, failed, hasMore }`.
 
@@ -149,7 +150,7 @@ organization({
 })
 ```
 
-`organizationHooks` belong to the app's `organization()` options, so a package can't register them; the app wires the cleanup in. A package MAY also clean up by itself with a plugin `hooks.after` matcher on `/organization/delete`, `/organization/remove-member` and `/organization/leave`. Leaving fires no `organizationHooks`, so a plugin hook is the only automatic cleanup for it. A package that cleans up by itself offers an option to turn it off, for apps that keep history for audit. It still MUST export the functions, because a hook on those paths doesn't see deletes made some other way, nor deletes whose own `organizationHooks` threw.
+`organizationHooks` belong to the app's `organization()` options, and the app wires the cleanup in. A package MAY also clean up by itself with a plugin `hooks.after` matcher on `/organization/delete`, `/organization/remove-member` and `/organization/leave`. A plugin can instead chain its own `organizationHooks` in `init`, as `@better-auth/stripe` does, but SHOULD prefer the matcher plus the exported function. Leaving fires no `organizationHooks`, so the `hooks.after` matcher is the only automatic cleanup for it. A package that cleans up by itself offers an option to turn it off, for apps that keep history for audit. It still MUST export the functions, because a hook on those paths doesn't see deletes made some other way, nor deletes whose own `organizationHooks` threw.
 
 6.3 A package that stores `organizationId` per member also exports a cleanup for when someone leaves or is removed: `deleteMemberData(auth, { userId, organizationId })`.
 
@@ -191,6 +192,8 @@ organization({
 
 Before 1.0, `0.x` caret ranges don't cross minors, so a breaking change bumps the minor. Features bump the minor too, and only fixes ship in a patch, so a patch is always safe to take. A breaking change never ships in a patch. Changed default wording is not breaking (every string has a label override), but the release notes name it.
 
+8.5 Code samples in the README, `AGENTS.md`, `llms.txt` and skills SHOULD compile in CI against the built package, imports included (entitlements' `pnpm docs:check`).
+
 ## 9. Exit path
 
 BYO is the right default for a young product, and some orgs will outgrow it: they need push and SMS at scale, a support team of fifty, or usage billing with invoicing. Leaving should be a planned, boring migration, not a rewrite. Every package plans for its own replacement.
@@ -203,7 +206,7 @@ BYO is the right default for a young product, and some orgs will outgrow it: the
 
 9.2 The schema is documented as a public contract: every model, every field, what each means. A schema change that breaks reading the old data is a major release, so exports and migration scripts keep working.
 
-9.3 Every package exports `export<Thing>Data(auth, { organizationId?, cursor? })`. It returns all the package's data (or one org's), paged with a cursor, as plain JSON in the documented schema, with better-auth `userId`/`organizationId` and the user's email on each row so it can be matched in the destination tool. It is server-only; it is not an endpoint. Short-lived state (a presence heartbeat) MAY be left out if the docs say so.
+9.3 Every package exports `export<Thing>Data(auth, { organizationId?, cursor? })`. It returns all the package's data (or one org's), paged with a cursor, as plain JSON in the documented schema, with better-auth `userId`/`organizationId` and the user's email on each row so it can be matched in the destination tool. It is server-only; it is not an endpoint. Short-lived state (a presence heartbeat) MAY be left out if the docs say so. The cursor MUST page over a unique sort key (for example an offset with `sortBy` on `id`), never an offset over a non-unique field such as a timestamp, which skips or repeats rows that tie. A newest-first list needs a keyset cursor instead: `{ at, ids }`, the timestamp of the last row returned and the ids already returned at it, which starts fresh when the next row is older (entitlements' `listEntitlementOverrides`).
 
 9.4 App code reaches the package through a small, stable surface (`auth.api.notify`, a hook, a component), never through its tables. When that surface is swapped for a third-party SDK, the migration touches those call sites and nothing else. Packages don't encourage apps to query their tables directly.
 
@@ -352,36 +355,36 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 
 ## Compliance today
 
-| Rule | @byo-oss/notifications 0.10.0 | @byo-oss/support 0.2.0 |
-|---|---|---|
-| 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) | ✅ `.`, `./client`, `./react`, `./wraps`, `./s3`, `./testing` (ESM only) |
-| 1.4 disclaimer | ✅ | ✅ |
-| 2.x plugin shape | ✅ | ✅ Requires the organization plugin (3.3) |
-| 2.7 adapter queries | ✅ Explicit limits, `in` lists chunked at 90, keyset cursor for export | ✅ Explicit limits, `in` lists chunked at 90, keyset cursors |
-| 3.1 identity is the better-auth user | ✅ | ✅ Plus account-less requesters by verified email (3.4) |
-| 3.2 explicit `onDelete` | ✅ All four references cascade | ✅ 12 references; `mergedIntoId` deliberately has no FK (nulled in code) |
-| 3.5 permissions, not roles | n/a | ✅ `supportStatements`, staff via `staffOrganizationId` or `authorize` |
-| 4.1 endpoint kinds | ✅ | ✅ Plus a source-authenticated inbound endpoint (`/support/inbound`) |
-| 5.x sweep contract | ✅ `processDeliveries` | ✅ `processSupportDeliveries` |
-| 6.2 org cleanup | ✅ `deleteOrganizationData`, plus automatic cleanup after delete (`organizationCleanup: false` to keep) | ✅ `deleteOrganizationData`, plus automatic cleanup after delete |
-| 6.3 member cleanup | ✅ `deleteMemberData`, plus automatic cleanup after remove-member and leave | ✅ `deleteMemberData` (unassigns), plus automatic cleanup |
-| 6.4 user cleanup without foreign keys | ✅ User-delete hook | ✅ User-delete hook; tickets in a team org stay without the person |
-| 7.3 shadcn tokens | ✅ | ✅ |
-| 7.4 keyboard and screen readers | ✅ Live unread count, `aria-describedby`, Escape returns focus | ✅ Tested in happy-dom; 44 px targets on touch |
-| 7.5 `labels` | ✅ | ✅ |
-| 8.1 README outline | ✅ | ✅ |
-| 8.2 `AGENTS.md` and skill | ✅ `AGENTS.md`, and the `byo-notifications` skill (`npx skills add byo-oss/notifications`, also shipped in the package) | ✅ `AGENTS.md`, `support-setup` skill (shipped in the package) |
-| 8.3 example and e2e | ✅ TanStack Start | ✅ TanStack Start |
-| 9.1 "Outgrowing this" | ✅ Knock and Novu mapping and steps | ✅ Zendesk mapping and steps |
-| 9.2 schema documented | ✅ | ✅ |
-| 9.3 data export | ✅ `exportNotificationsData` (presence left out, as allowed) | ✅ `exportSupportData` |
-| 9.5 uninstall steps | ✅ | ✅ |
-| 10.3 exported interface | ✅ `InboxChannel`, with `PermanentDeliveryError` | ✅ `SupportInboundSource`, `SupportStorage`; mail via `@byo-oss/mailer` |
-| 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` | ✅ `wrapsInbound` (`./wraps`), `s3Storage` (`./s3`) |
-| 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` | ✅ Inbound-source and storage suites |
-| 11.1 `byo` hooks | ⚠️ `sweep`, `deleteOrganizationData`, `deleteMemberData`, with two deviations: its sweep runs on the base adapter, so it never joins a caller's transaction, and the cleanups are left out of `byo` when `organizationCleanup: false` | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` |
-| 11.2 email through `@byo-oss/mailer` | ❌ Its email channel uses `@wraps.dev/email` directly (moves onto the mailer next) | ✅ `mailer` option takes a `Mailer`; stores `messageId` for threading |
-| 11.3 domain events | ✅ `notifications.notification.created`, `notifications.delivery.failed`, after commit | ✅ Eight types, after commit (0.1.0 emitted when the adapter write returned) |
+| Rule | @byo-oss/notifications 0.10.0 | @byo-oss/support 0.2.0 | @byo-oss/entitlements 0.1.0 |
+|---|---|---|---|
+| 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) | ✅ `.`, `./client`, `./react`, `./wraps`, `./s3`, `./testing` (ESM only) | ✅ `.`, `./catalog` (imports nothing), `./client`, `./react`, `./stripe`, `./testing` (ESM + CJS; `./testing` ESM only) |
+| 1.4 disclaimer | ✅ | ✅ | ✅ |
+| 2.x plugin shape | ✅ | ✅ Requires the organization plugin (3.3) | ✅ Requires the organization plugin (3.3) |
+| 2.7 adapter queries | ✅ Explicit limits, `in` lists chunked at 90, keyset cursor for export | ✅ Explicit limits, `in` lists chunked at 90, keyset cursors | ✅ Explicit limits, `in` lists chunked at 90, offset over `id` for export, keyset cursor for overrides |
+| 3.1 identity is the better-auth user | ✅ | ✅ Plus account-less requesters by verified email (3.4) | ✅ No customer table: everything is per organization |
+| 3.2 explicit `onDelete` | ✅ All four references cascade | ✅ 12 references; `mergedIntoId` deliberately has no FK (nulled in code) | ✅ Org references cascade; `createdBy`/`removedBy` set null |
+| 3.5 permissions, not roles | n/a | ✅ `supportStatements`, staff via `staffOrganizationId` or `authorize` | ✅ `entitlementsStatements`, staff via `staffOrganizationId` or `authorize` |
+| 4.1 endpoint kinds | ✅ | ✅ Plus a source-authenticated inbound endpoint (`/support/inbound`) | ✅ |
+| 5.x sweep contract | ✅ `processDeliveries` | ✅ `processSupportDeliveries` | ✅ `processEntitlementsSync`; a failed snapshot keeps its plan and retries at `maxAge` (5.2 MAY) |
+| 6.2 org cleanup | ✅ `deleteOrganizationData`, plus automatic cleanup after delete (`organizationCleanup: false` to keep) | ✅ `deleteOrganizationData`, plus automatic cleanup after delete | ✅ `deleteOrganizationData`, plus automatic cleanup after delete (with an opt-out) |
+| 6.3 member cleanup | ✅ `deleteMemberData`, plus automatic cleanup after remove-member and leave | ✅ `deleteMemberData` (unassigns), plus automatic cleanup | n/a No per-member rows |
+| 6.4 user cleanup without foreign keys | ✅ User-delete hook | ✅ User-delete hook; tickets in a team org stay without the person | ✅ User-delete hook nulls the override author fields |
+| 7.3 shadcn tokens | ✅ | ✅ | ✅ |
+| 7.4 keyboard and screen readers | ✅ Live unread count, `aria-describedby`, Escape returns focus | ✅ Tested in happy-dom; 44 px targets on touch | ✅ No interactive parts; `UsageMeter` is a `progressbar` with a polite live count |
+| 7.5 `labels` | ✅ | ✅ | ✅ |
+| 8.1 README outline | ✅ | ✅ | ✅ |
+| 8.2 `AGENTS.md` and skill | ✅ `AGENTS.md`, and the `byo-notifications` skill (`npx skills add byo-oss/notifications`, also shipped in the package) | ✅ `AGENTS.md`, `support-setup` skill (shipped in the package) | ✅ `AGENTS.md`, `byo-entitlements` skill (shipped in the package) |
+| 8.3 example and e2e | ✅ TanStack Start | ✅ TanStack Start | ✅ TanStack Start |
+| 9.1 "Outgrowing this" | ✅ Knock and Novu mapping and steps | ✅ Zendesk mapping and steps | ✅ Stripe Entitlements and Autumn mapping and steps |
+| 9.2 schema documented | ✅ | ✅ | ✅ |
+| 9.3 data export | ✅ `exportNotificationsData` (presence left out, as allowed) | ✅ `exportSupportData` | ✅ `exportEntitlementsData` |
+| 9.5 uninstall steps | ✅ | ✅ | ✅ |
+| 10.3 exported interface | ✅ `InboxChannel`, with `PermanentDeliveryError` | ✅ `SupportInboundSource`, `SupportStorage`; mail via `@byo-oss/mailer` | ⚠️ `BillingSource`; throw to retry, and deliberately no permanent-failure type, so a source error never drops a paid plan |
+| 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` | ✅ `wrapsInbound` (`./wraps`), `s3Storage` (`./s3`) | ✅ `fromBetterAuthStripe` (`./stripe`), on `@better-auth/stripe`'s subscriptions and webhook (§10.7) |
+| 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` | ✅ Inbound-source and storage suites | ✅ `testBillingSource`, `memorySource` |
+| 11.1 `byo` hooks | ⚠️ `sweep`, `deleteOrganizationData`, `deleteMemberData`, with two deviations: its sweep runs on the base adapter, so it never joins a caller's transaction, and the cleanups are left out of `byo` when `organizationCleanup: false` | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` | ✅ `sweep`, `deleteOrganizationData` (no member rows); the sweep joins a caller's transaction |
+| 11.2 email through `@byo-oss/mailer` | ❌ Its email channel uses `@wraps.dev/email` directly (moves onto the mailer next) | ✅ `mailer` option takes a `Mailer`; stores `messageId` for threading | n/a Sends no email |
+| 11.3 domain events | ✅ `notifications.notification.created`, `notifications.delivery.failed`, after commit | ✅ Eight types, after commit (0.1.0 emitted when the adapter write returned) | ✅ `entitlements.plan.changed`, `entitlements.override.set`, `entitlements.override.removed`, `entitlements.usage.limit_reached`, after commit |
 
 ## Open questions
 
