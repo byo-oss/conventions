@@ -370,7 +370,7 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 | 10.3 exported interface | ✅ `InboxChannel`, with `PermanentDeliveryError` | ✅ `SupportInboundSource`, `SupportStorage`; mail via `@byo-oss/mailer` |
 | 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` | ✅ `wrapsInbound` (`./wraps`), `s3Storage` (`./s3`) |
 | 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` | ✅ Inbound-source and storage suites |
-| 11.1 `byo` hooks | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData`; cleanups omitted with `organizationCleanup: false` (0.10.0) | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` |
+| 11.1 `byo` hooks | ❌ Not declared in 0.9.0. ⚠️ The upcoming 0.10.0 declares `sweep`, `deleteOrganizationData` and `deleteMemberData`, with two deviations: its sweep runs on the base adapter, so it never joins a caller's transaction, and the cleanups are left out of `byo` when `organizationCleanup: false` | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` |
 | 11.2 email through `@byo-oss/mailer` | ❌ Its email channel uses `@wraps.dev/email` directly (moves onto the mailer next) | ✅ `mailer` option takes a `Mailer`; stores `messageId` for threading |
 | P1 domain events (proposed) | ✅ `notifications.notification.created`, `notifications.delivery.failed`, after commit (0.10.0) | ✅ Eight types, after commit (0.1.1) |
 
