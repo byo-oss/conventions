@@ -372,7 +372,7 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 | 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` | ✅ Inbound-source and storage suites |
 | 11.1 `byo` hooks | ❌ Not declared in 0.9.0. ⚠️ The upcoming 0.10.0 declares `sweep`, `deleteOrganizationData` and `deleteMemberData`, with two deviations: its sweep runs on the base adapter, so it never joins a caller's transaction, and the cleanups are left out of `byo` when `organizationCleanup: false` | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` |
 | 11.2 email through `@byo-oss/mailer` | ❌ Its email channel uses `@wraps.dev/email` directly (moves onto the mailer next) | ✅ `mailer` option takes a `Mailer`; stores `messageId` for threading |
-| P1 domain events (proposed) | ✅ `notifications.notification.created`, `notifications.delivery.failed`, after commit (0.10.0) | ✅ Eight types, after commit (0.1.1) |
+| P1 domain events (proposed) | ❌ No events in 0.9.0. The upcoming 0.10.0 emits `notifications.notification.created` and `notifications.delivery.failed`, after commit | ✅ Eight types. 0.1.0 emits when the adapter write returns; the upcoming 0.1.1 waits for the caller's commit |
 
 ## Open questions
 
