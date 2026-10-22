@@ -285,7 +285,7 @@ type ByoEvent = {
 
 Each package accepts `onEvent?: (event) => Promise<void> | void`. A write made through the base adapter has committed when it returns, so its event fires then. A write that joined a caller's transaction (`getCurrentAdapter` inside `runWithTransaction`, imported from `@better-auth/core/context`) fires its event through `queueAfterTransactionHook` from the same module: after the commit, never on rollback. Apps join through `runWithTransaction`. A plain `adapter.transaction` isn't joined, so the package's writes commit at once, along with their events. Wrapping with `runWithAdapter(trx, …)` joins the writes, but their events fire before the commit. Delivery is in-process and best-effort. A handler's error is caught and logged, and never fails the request or sweep that caused it. `<package>` equals the plugin id except for notifications (`inbox`, 2.1), whose events are `notifications.*`. A consumer that needs durability writes its own rows, the way inbox does with `notificationDelivery`.
 
-**Status:** proven by `@byo-oss/support`, which emits eight event types through `onEvent`, and by `@byo-oss/notifications`, which emits `notifications.notification.created` and `notifications.delivery.failed`. Both emit after commit as above from the upcoming releases, support 0.2.0 and notifications 0.10.0. Support 0.1.0 emits when the adapter write returns, and notifications 0.9.0 and earlier emit no events. `@byo-oss/core`'s bus routes `support.agent.replied` into `auth.api.notify`.
+**Status:** proven by `@byo-oss/support`, which emits eight event types through `onEvent`, and by `@byo-oss/notifications`, which emits `notifications.notification.created` and `notifications.delivery.failed`. Both emit after commit as above: support from 0.2.0 and notifications from 0.10.0 (2026-10-22). Support 0.1.0 emitted when the adapter write returned, and notifications 0.9.0 and earlier emit no events. `@byo-oss/core`'s bus routes `support.agent.replied` into `auth.api.notify`.
 
 Example wiring, which `@byo-oss/core` could reduce to one line:
 
@@ -310,7 +310,7 @@ Promoted to Part 1 as §11.2. Released as `@byo-oss/mailer` (0.1.0 on 2026-10-21
 
 ## P5. `@byo-oss/core`
 
-Promoted to Part 1 as §11.1 (`byo` hooks for `sweepAll` and the cleanup fan-out). Released as `@byo-oss/core` (0.1.0 on 2026-10-21). Its `ByoEvent` type and event bus stay with P1, which is still proposed: notifications emits events from the upcoming 0.10.0.
+Promoted to Part 1 as §11.1 (`byo` hooks for `sweepAll` and the cleanup fan-out). Released as `@byo-oss/core` (0.1.0 on 2026-10-21). Its `ByoEvent` type and event bus stay with P1, which is still proposed.
 
 ## P6. Agent-native operations
 
@@ -337,8 +337,8 @@ Names claimed by BYO packages. Add a row before you release.
 
 | Package | Plugin id / path prefix | Models | `auth.api` keys | Error codes | Status |
 |---|---|---|---|---|---|
-| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.9.0); its `better-auth` peer is still `^1.6.23`, below the baseline, until the next release |
-| `@byo-oss/support` | `support` → `/support/*` | `supportTicket`, `supportMessage`, `supportTicketTag`, `supportCannedReply`, `supportCounter`, `supportDelivery`, `supportAttachment` | `createSupportTicket`, `listMySupportTickets`, `getSupportTicket`, `replyToSupportTicket`, `updateMySupportTicket`, `markSupportTicketSeen`, `listSupportTickets`, `getSupportTicketAsAgent`, `replyAsSupportAgent`, `updateSupportTickets`, `markSupportTicketSeenAsAgent`, `listSupportTags`, `listSupportCannedReplies`, `saveSupportCannedReply`, `deleteSupportCannedReply`, `deleteSupportTickets`, `mergeSupportTickets`, `uploadSupportAttachment`, `getSupportAttachment`, `uploadSupportAttachmentAsAgent`, `getSupportAttachmentAsAgent`, `processSupportDeliveries`, `receiveSupportEmail` | `SUPPORT_ERROR_CODES` | Released (0.1.0); borrows from upstream `better-helpdesk` (MIT, NOTICE) |
+| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.10.0): events `notifications.*` (`NOTIFICATIONS_EVENT_TYPES`) |
+| `@byo-oss/support` | `support` → `/support/*` | `supportTicket`, `supportMessage`, `supportTicketTag`, `supportCannedReply`, `supportCounter`, `supportDelivery`, `supportAttachment` | `createSupportTicket`, `listMySupportTickets`, `getSupportTicket`, `replyToSupportTicket`, `updateMySupportTicket`, `markSupportTicketSeen`, `listSupportTickets`, `getSupportTicketAsAgent`, `replyAsSupportAgent`, `updateSupportTickets`, `markSupportTicketSeenAsAgent`, `listSupportTags`, `listSupportCannedReplies`, `saveSupportCannedReply`, `deleteSupportCannedReply`, `deleteSupportTickets`, `mergeSupportTickets`, `uploadSupportAttachment`, `getSupportAttachment`, `uploadSupportAttachmentAsAgent`, `getSupportAttachmentAsAgent`, `processSupportDeliveries`, `receiveSupportEmail` | `SUPPORT_ERROR_CODES` | Released (0.2.0); events `support.*`; borrows from upstream `better-helpdesk` (MIT, NOTICE) |
 | `@byo-oss/core` (shared) | — | — | — | — | Released (0.1.0): `listByoPlugins`, `sweepAll`, `createEventBus`, org/member cleanup fan-out |
 | `@byo-oss/mailer` (shared, P4) | — | — | — | — | Released (0.1.0): `Mailer` interface, `memoryMailer`, `wrapsMailer` (`./wraps`), `sesMailer` (`./ses`), `emailSdkMailer` (`./email-sdk`), contract suite (`./testing`) |
 | *feedback / roadmap / changelog* | *`feedback`?* | *`feedbackPost`, `feedbackVote`, `changelogEntry`?* | — | — | Planned; name not claimed |
@@ -349,7 +349,7 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 
 ## Compliance today
 
-| Rule | @byo-oss/notifications 0.9.0 | @byo-oss/support 0.1.0 |
+| Rule | @byo-oss/notifications 0.10.0 | @byo-oss/support 0.2.0 |
 |---|---|---|
 | 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) | ✅ `.`, `./client`, `./react`, `./wraps`, `./s3`, `./testing` (ESM only) |
 | 1.4 disclaimer | ✅ | ✅ |
@@ -376,9 +376,9 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 | 10.3 exported interface | ✅ `InboxChannel`, with `PermanentDeliveryError` | ✅ `SupportInboundSource`, `SupportStorage`; mail via `@byo-oss/mailer` |
 | 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` | ✅ `wrapsInbound` (`./wraps`), `s3Storage` (`./s3`) |
 | 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` | ✅ Inbound-source and storage suites |
-| 11.1 `byo` hooks | ❌ Not declared in 0.9.0. ⚠️ The upcoming 0.10.0 declares `sweep`, `deleteOrganizationData` and `deleteMemberData`, with two deviations: its sweep runs on the base adapter, so it never joins a caller's transaction, and the cleanups are left out of `byo` when `organizationCleanup: false` | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` |
+| 11.1 `byo` hooks | ⚠️ `sweep`, `deleteOrganizationData`, `deleteMemberData`, with two deviations: its sweep runs on the base adapter, so it never joins a caller's transaction, and the cleanups are left out of `byo` when `organizationCleanup: false` | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` |
 | 11.2 email through `@byo-oss/mailer` | ❌ Its email channel uses `@wraps.dev/email` directly (moves onto the mailer next) | ✅ `mailer` option takes a `Mailer`; stores `messageId` for threading |
-| P1 domain events (proposed) | ❌ No events in 0.9.0. The upcoming 0.10.0 emits `notifications.notification.created` and `notifications.delivery.failed`, after commit | ✅ Eight types. 0.1.0 emits when the adapter write returns; the upcoming 0.2.0 waits for the caller's commit |
+| P1 domain events (proposed) | ✅ `notifications.notification.created`, `notifications.delivery.failed`, after commit | ✅ Eight types, after commit (0.1.0 emitted when the adapter write returned) |
 
 ## Open questions
 
