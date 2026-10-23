@@ -349,13 +349,13 @@ Names claimed by BYO packages. Add a row before you release.
 | `@byo-oss/mailer` (shared, P4) | — | — | — | — | Released (0.1.0): `Mailer` interface, `memoryMailer`, `wrapsMailer` (`./wraps`), `sesMailer` (`./ses`), `emailSdkMailer` (`./email-sdk`), contract suite (`./testing`) |
 | *feedback / roadmap / changelog* | *`feedback`?* | *`feedbackPost`, `feedbackVote`, `changelogEntry`?* | — | — | Planned; name not claimed |
 | *org activity feed* | *`activity`?* | *`activityEvent`?* | — | — | Planned |
-| `@byo-oss/entitlements` | `entitlements` → `/entitlements/*` | `entitlementSnapshot`, `entitlementOverride`, `entitlementUsage` | `getEntitlements`, `refreshEntitlements`, `setEntitlementOverride`, `removeEntitlementOverride`, `listEntitlementOverrides`, `processEntitlementsSync` | `ENTITLEMENTS_ERROR_CODES` | Released (0.1.0); events `entitlements.*` (`ENTITLEMENTS_EVENT_TYPES`); uses the §10.7 exception: a `BillingSource` feeds a per-organization snapshot cache (first-party Stripe source on `@better-auth/stripe`, `./stripe`), resynced by push, read-through, `refreshEntitlements` and the sweep |
+| `@byo-oss/entitlements` | `entitlements` → `/entitlements/*` | `entitlementSnapshot`, `entitlementOverride`, `entitlementUsage` | `getEntitlements`, `refreshEntitlements`, `setEntitlementOverride`, `removeEntitlementOverride`, `listEntitlementOverrides`, `processEntitlementsSync` | `ENTITLEMENTS_ERROR_CODES` | Released (0.2.0); events `entitlements.*` (`ENTITLEMENTS_EVENT_TYPES`); uses the §10.7 exception: a `BillingSource` feeds a per-organization snapshot cache (first-party Stripe source on `@better-auth/stripe`, `./stripe`), resynced by push, read-through, `refreshEntitlements` and the sweep |
 
 Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries`, `markRead`, `markSeen`, `markAllRead` and `unreadCount` are all generic. They keep their names until a major release, and block any other package from using them.
 
 ## Compliance today
 
-| Rule | @byo-oss/notifications 0.11.0 | @byo-oss/support 0.2.0 | @byo-oss/entitlements 0.1.0 |
+| Rule | @byo-oss/notifications 0.11.0 | @byo-oss/support 0.2.0 | @byo-oss/entitlements 0.2.0 |
 |---|---|---|---|
 | 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) | ✅ `.`, `./client`, `./react`, `./wraps`, `./s3`, `./testing` (ESM only) | ✅ `.`, `./catalog` (imports nothing), `./client`, `./react`, `./stripe`, `./testing` (ESM + CJS; `./testing` ESM only) |
 | 1.4 disclaimer | ✅ | ✅ | ✅ |
