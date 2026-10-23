@@ -343,7 +343,7 @@ Names claimed by BYO packages. Add a row before you release.
 
 | Package | Plugin id / path prefix | Models | `auth.api` keys | Error codes | Status |
 |---|---|---|---|---|---|
-| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.10.0): events `notifications.*` (`NOTIFICATIONS_EVENT_TYPES`) |
+| `@byo-oss/notifications` (formerly `better-inbox`, deprecated) | `inbox` → `/inbox/*` | `notification`, `notificationDelivery`, `inboxPresence` | `notify`, `processDeliveries`, `listNotifications`, `markRead`, `markSeen`, `markAllRead`, `unreadCount` | `INBOX_ERROR_CODES` | Released (0.11.0): events `notifications.*` (`NOTIFICATIONS_EVENT_TYPES`); email through `@byo-oss/mailer` (`mailerChannel`, `./mailer`) |
 | `@byo-oss/support` | `support` → `/support/*` | `supportTicket`, `supportMessage`, `supportTicketTag`, `supportCannedReply`, `supportCounter`, `supportDelivery`, `supportAttachment` | `createSupportTicket`, `listMySupportTickets`, `getSupportTicket`, `replyToSupportTicket`, `updateMySupportTicket`, `markSupportTicketSeen`, `listSupportTickets`, `getSupportTicketAsAgent`, `replyAsSupportAgent`, `updateSupportTickets`, `markSupportTicketSeenAsAgent`, `listSupportTags`, `listSupportCannedReplies`, `saveSupportCannedReply`, `deleteSupportCannedReply`, `deleteSupportTickets`, `mergeSupportTickets`, `uploadSupportAttachment`, `getSupportAttachment`, `uploadSupportAttachmentAsAgent`, `getSupportAttachmentAsAgent`, `processSupportDeliveries`, `receiveSupportEmail` | `SUPPORT_ERROR_CODES` | Released (0.2.0); events `support.*`; borrows from upstream `better-helpdesk` (MIT, NOTICE) |
 | `@byo-oss/core` (shared) | — | — | — | — | Released (0.1.0): `listByoPlugins`, `sweepAll`, `createEventBus`, org/member cleanup fan-out |
 | `@byo-oss/mailer` (shared, P4) | — | — | — | — | Released (0.1.0): `Mailer` interface, `memoryMailer`, `wrapsMailer` (`./wraps`), `sesMailer` (`./ses`), `emailSdkMailer` (`./email-sdk`), contract suite (`./testing`) |
@@ -355,7 +355,7 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 
 ## Compliance today
 
-| Rule | @byo-oss/notifications 0.10.0 | @byo-oss/support 0.2.0 | @byo-oss/entitlements 0.1.0 |
+| Rule | @byo-oss/notifications 0.11.0 | @byo-oss/support 0.2.0 | @byo-oss/entitlements 0.1.0 |
 |---|---|---|---|
 | 1.2 export layout | ✅ `.`, `./client`, `./react`, `./wraps`, `./testing` (ESM only) | ✅ `.`, `./client`, `./react`, `./wraps`, `./s3`, `./testing` (ESM only) | ✅ `.`, `./catalog` (imports nothing), `./client`, `./react`, `./stripe`, `./testing` (ESM + CJS; `./testing` ESM only) |
 | 1.4 disclaimer | ✅ | ✅ | ✅ |
@@ -380,10 +380,10 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 | 9.3 data export | ✅ `exportNotificationsData` (presence left out, as allowed) | ✅ `exportSupportData` | ✅ `exportEntitlementsData` |
 | 9.5 uninstall steps | ✅ | ✅ | ✅ |
 | 10.3 exported interface | ✅ `InboxChannel`, with `PermanentDeliveryError` | ✅ `SupportInboundSource`, `SupportStorage`; mail via `@byo-oss/mailer` | ⚠️ `BillingSource`; throw to retry, and deliberately no permanent-failure type, so a source error never drops a paid plan |
-| 10.4 first-party adapter | ✅ `@byo-oss/notifications/wraps` | ✅ `wrapsInbound` (`./wraps`), `s3Storage` (`./s3`) | ✅ `fromBetterAuthStripe` (`./stripe`), on `@better-auth/stripe`'s subscriptions and webhook (§10.7) |
-| 10.6 `./testing` suite | ✅ `testChannel`, run by `wrapsEmail` | ✅ Inbound-source and storage suites | ✅ `testBillingSource`, `memorySource` |
+| 10.4 first-party adapter | ✅ `@byo-oss/notifications/mailer` (`mailerChannel`, any `Mailer`); `./wraps` (`wrapsEmail`) is deprecated | ✅ `wrapsInbound` (`./wraps`), `s3Storage` (`./s3`) | ✅ `fromBetterAuthStripe` (`./stripe`), on `@better-auth/stripe`'s subscriptions and webhook (§10.7) |
+| 10.6 `./testing` suite | ✅ `testChannel`, run by `mailerChannel` and `wrapsEmail` | ✅ Inbound-source and storage suites | ✅ `testBillingSource`, `memorySource` |
 | 11.1 `byo` hooks | ⚠️ `sweep`, `deleteOrganizationData`, `deleteMemberData`, with two deviations: its sweep runs on the base adapter, so it never joins a caller's transaction, and the cleanups are left out of `byo` when `organizationCleanup: false` | ✅ `sweep`, `deleteOrganizationData`, `deleteMemberData` | ✅ `sweep`, `deleteOrganizationData` (no member rows); the sweep joins a caller's transaction |
-| 11.2 email through `@byo-oss/mailer` | ❌ Its email channel uses `@wraps.dev/email` directly (moves onto the mailer next) | ✅ `mailer` option takes a `Mailer`; stores `messageId` for threading | n/a Sends no email |
+| 11.2 email through `@byo-oss/mailer` | ✅ `mailerChannel` takes any `Mailer`; a `PermanentMailError` fails the delivery, any other error retries. `wrapsEmail` (provider SDK directly) is deprecated | ✅ `mailer` option takes a `Mailer`; stores `messageId` for threading | n/a Sends no email |
 | 11.3 domain events | ✅ `notifications.notification.created`, `notifications.delivery.failed`, after commit | ✅ Eight types, after commit (0.1.0 emitted when the adapter write returned) | ✅ `entitlements.plan.changed`, `entitlements.override.set`, `entitlements.override.removed`, `entitlements.usage.limit_reached`, after commit |
 
 ## Open questions
