@@ -194,6 +194,17 @@ Before 1.0, `0.x` caret ranges don't cross minors, so a breaking change bumps th
 
 8.5 Code samples in the README, `AGENTS.md`, `llms.txt` and skills SHOULD compile in CI against the built package, imports included (entitlements' `pnpm docs:check`).
 
+8.6 **Security floors.** When an advisory affects a version that one of a package's ranges admits (every `peerDependencies` and `dependencies` entry counts), the package MUST narrow that range so it admits no affected version, and release. The floor rises to at least the first fixed version, with an `||` range when the fix shipped on more than one line (`^2.4.1 || >=3.0.2` for fixes in 2.4.1 and 3.0.2). Then an app can't install the package next to an affected version.
+
+- **Advisory:** a GitHub advisory, in the global database or the upstream repository, or a CVE. It's published when the first of those appears, and it's critical when GitHub shows that severity on it.
+- **Window:** the release ships within 7 days, or within 72 hours when GitHub rates the advisory critical, counted from the later of the advisory's publication and the fixed version's release. If the fixed version needs code changes that can't ship in the window, the package says so in its README and an issue within the window, and releases as soon as it can.
+- **A dependency's dependency:** when the affected package comes in through a direct dependency, the fixed version is the first release of that dependency whose own range admits no affected version, and the floor rises on the direct dependency.
+- **Release type:** a narrowed peer range is breaking under 8.4, so it's the next minor before 1.0, never a patch. A raised `dependencies` floor alone isn't breaking: it ships as a patch, or as a minor when the new version changes documented behaviour.
+- **Release notes:** the package's upgrade notes and its GitHub release. They name each advisory by its GHSA or CVE id, or link the upstream notice that lists them.
+- **Test peers:** an optional peer that only a test-helper export uses (`vitest >=4.1.11` for `./testing`) is exempt from the windows. Its floor SHOULD rise in the next minor release.
+- **Older minors:** only the latest minor gets the fix. An older minor whose range still admits an affected version (test peers aside) SHOULD be deprecated on npm with a message naming the advisory and the BYO release that raised the floor.
+- **Our own advisories:** a bug in a peer or dependency gets no advisory in the package's repo. A BYO bug that makes an upstream bug exploitable is BYO's own and gets one.
+
 ## 9. Exit path
 
 BYO is the right default for a young product, and some orgs will outgrow it: they need push and SMS at scale, a support team of fifty, or usage billing with invoicing. Leaving should be a planned, boring migration, not a rewrite. Every package plans for its own replacement.
@@ -375,6 +386,7 @@ Notifications' keys predate the prefix rule in 2.1: `notify`, `processDeliveries
 | 8.1 README outline | ✅ | ✅ | ✅ |
 | 8.2 `AGENTS.md` and skill | ✅ `AGENTS.md`, and the `byo-notifications` skill (`npx skills add byo-oss/notifications`, also shipped in the package) | ✅ `AGENTS.md`, `support-setup` skill (shipped in the package) | ✅ `AGENTS.md`, `byo-entitlements` skill (shipped in the package) |
 | 8.3 example and e2e | ✅ TanStack Start | ✅ TanStack Start | ✅ TanStack Start |
+| 8.6 security floors | ⚠️ better-auth 1.7.16 (2026-11-03, 12 advisories, one critical): 0.13.0 raised `better-auth` and `@better-auth/core` to `^1.7.16` 6 h later, as a minor; notes name GHSA-c85h-5mrr-mgx4 and link the security release, not each id. Open: dependency `zod` `^4.4.3` still admits GHSA-mrhx-c7xc-m3w5 (fixed in 4.6.6). Earlier minors aren't deprecated (SHOULD) | ⚠️ better-auth 1.7.16: 0.4.0 raised `better-auth` and `@better-auth/core` to `^1.7.16` 6 h later, as a minor; notes name GHSA-c85h-5mrr-mgx4 and link the security release, not each id. Open: peer `zod` `^4.0.0` still admits GHSA-mrhx-c7xc-m3w5 (fixed in 4.6.6). Earlier minors aren't deprecated (SHOULD) | ⚠️ better-auth 1.7.16: 0.3.0 raised `better-auth`, `@better-auth/core` and `@better-auth/stripe` to `^1.7.16` 6 h later, as a minor; notes name GHSA-x8j7-xh58-rv6x and GHSA-c85h-5mrr-mgx4 and link the security release, not each id. Open: peer `zod` `^4.0.0` still admits GHSA-mrhx-c7xc-m3w5 (fixed in 4.6.6). Earlier minors aren't deprecated (SHOULD) |
 | 9.1 "Outgrowing this" | ✅ Knock and Novu mapping and steps | ✅ Zendesk mapping and steps | ✅ Stripe Entitlements and Autumn mapping and steps |
 | 9.2 schema documented | ✅ | ✅ | ✅ |
 | 9.3 data export | ✅ `exportNotificationsData`; presence left out, as allowed. With `webPush` on, `pushSubscription` rows are left out too, as credentials (`data.ts` docstring; devices subscribe again) | ✅ `exportSupportData` | ✅ `exportEntitlementsData` |
